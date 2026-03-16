@@ -22,18 +22,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
 
-  // Reads SecureStore on app start — idempotent, safe to call more than once.
-  // try/finally guarantees isHydrated is always set even if SecureStore throws,
-  // preventing the AuthGuard from blocking forever on a blank screen.
+  // Merged into single set() call to prevent split renders causing
+  // AuthGuard redirect effect to fire before token state is updated.
   hydrate: async () => {
     try {
       const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-      set({ token });
+      set({ token, isHydrated: true });
     } catch {
-      // Storage read failed — treat as unauthenticated, do not block startup.
-      set({ token: null, error: "Failed to restore session." });
-    } finally {
-      set({ isHydrated: true });
+      set({
+        token: null,
+        error: "Failed to restore session.",
+        isHydrated: true,
+      });
     }
   },
 
@@ -57,7 +57,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         }),
       });
 
-      // Validate HTTP layer before trusting the JSON body.
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`);
       }
@@ -67,7 +66,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (errors?.length) throw new Error(errors[0].message);
 
-      // Guard against unexpected response shape before writing to storage.
       const accessToken = data?.login?.accessToken;
       const refreshToken = data?.login?.refreshToken;
 
@@ -78,9 +76,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
       set({ token: accessToken, isLoading: false });
-
-      // TODO (Phase B): store user.role here if role-aware UI is needed.
-      // TODO (Phase B): implement token refresh using refreshToken.
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Login failed",
@@ -89,20 +84,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  // try/finally guarantees auth state is always cleared even if storage throws.
-  // Clears error too so stale messages don't persist after logout.
   logout: async () => {
     try {
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     } catch {
       // Storage deletion failed — proceed with state cleanup anyway.
-      // Token is cleared from memory so the user is effectively logged out.
     } finally {
       set({ token: null, error: null });
     }
   },
 
-  // Called on input change to clear stale error messaging.
   clearError: () => set({ error: null }),
 }));
