@@ -1,58 +1,53 @@
 import '../global.css';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useAuthStore } from '@/lib/store/auth.store';
 
-import { useColorScheme } from '@/components/useColorScheme';
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const token      = useAuthStore((state) => state.token);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const hydrate    = useAuthStore((state) => state.hydrate);
+  const segments   = useSegments();
+  const router     = useRouter();
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+  // Hydrate once on mount — reads SecureStore and sets token + isHydrated.
+  // hydrate() is idempotent: safe if called more than once (Strict Mode / dev).
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    hydrate();
+  }, [hydrate]);
 
+  // Redirect based on auth state — only runs after hydration is complete.
+  // router and segments included in deps per exhaustive-deps convention.
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (!isHydrated) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!token && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (token && inAuthGroup) {
+      router.replace('/(app)');
     }
-  }, [loaded]);
+    // TODO: treat stored token as provisional — add forced logout on
+    // unrecoverable 401 once refreshLink is wired in Apollo client.
+  }, [token, isHydrated, segments, router]);
 
-  if (!loaded) {
-    return null;
-  }
+  // Block render until SecureStore has been read.
+  // Prevents flash of wrong screen on cold boot.
+  if (!isHydrated) return null;
 
-  return <RootLayoutNav />;
+  return <>{children}</>;
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    <AuthGuard>
+      <StatusBar style="auto" />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
       </Stack>
-    </ThemeProvider>
+    </AuthGuard>
   );
 }
