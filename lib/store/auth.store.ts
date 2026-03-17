@@ -14,6 +14,7 @@ type AuthState = {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
+  setToken: (token: string) => void;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -76,6 +77,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
       set({ token: accessToken, isLoading: false });
+
+      // TODO (Phase B): store user.role here if role-aware UI is needed.
+      // TODO (Phase B): implement tokenVersion validation on refresh.
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Login failed",
@@ -84,6 +88,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // try/finally guarantees auth state is always cleared even if storage throws.
+  // Clears error too so stale messages don't persist after logout.
   logout: async () => {
     try {
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
@@ -95,5 +101,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // Called by refreshLink after a successful token refresh.
+  setToken: (token: string) => set({ token }),
+
+  // Called on input change to clear stale error messaging.
   clearError: () => set({ error: null }),
 }));
