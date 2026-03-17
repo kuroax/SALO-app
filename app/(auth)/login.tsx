@@ -1,13 +1,13 @@
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 export default function LoginScreen() {
@@ -55,49 +55,45 @@ export default function LoginScreen() {
           </View>
         ) : null}
 
-        <TextInput
-          className="mb-3 rounded-xl border border-gray-200 px-4 py-3 text-base text-gray-900"
-          placeholder="Username"
-          placeholderTextColor="#9ca3af"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="username"
-          textContentType="username"
-          returnKeyType="next"
-          value={username}
-          onChangeText={handleUsernameChange}
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          blurOnSubmit={false}
-        />
+        <View className="mb-3">
+          <Input
+            label="Username"
+            value={username}
+            onChangeText={handleUsernameChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="username"
+            textContentType="username"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+        </View>
 
-        <TextInput
-          ref={passwordRef}
-          className="mb-6 rounded-xl border border-gray-200 px-4 py-3 text-base text-gray-900"
-          placeholder="Password"
-          placeholderTextColor="#9ca3af"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="password"
-          textContentType="password"
-          returnKeyType="done"
-          value={password}
-          onChangeText={handlePasswordChange}
-          onSubmitEditing={handleSubmit}
-        />
+        <View className="mb-6">
+          <Input
+            ref={passwordRef}
+            label="Password"
+            value={password}
+            onChangeText={handlePasswordChange}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+          />
+        </View>
 
-        <TouchableOpacity
-          className="items-center rounded-xl bg-gray-900 py-4"
+        <Button
           onPress={handleSubmit}
+          loading={isLoading}
           disabled={isSubmitDisabled}
-          style={{ opacity: isSubmitDisabled ? 0.5 : 1 }}
+          fullWidth
         >
-          {isLoading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-base font-semibold text-white">Sign In</Text>
-          )}
-        </TouchableOpacity>
+          Sign In
+        </Button>
       </View>
     </KeyboardAvoidingView>
   );
