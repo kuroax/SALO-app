@@ -1,7 +1,37 @@
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
+
+// ─── Summary Card ─────────────────────────────────────────────────────────────
+
+type SummaryCardProps = {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+};
+
+// mb-3 lives on the wrapper View — spacing is a layout concern,
+// not a Card concern.
+function SummaryCard({ title, value, subtitle }: SummaryCardProps) {
+  return (
+    <View className="mb-3">
+      <Card variant="white" padding="md">
+        <Text className="mb-1 text-sm font-medium text-gray-500">{title}</Text>
+        <Text className="text-2xl font-bold text-gray-900">
+          {String(value)}
+        </Text>
+        {subtitle ? (
+          <Text className="mt-0.5 text-xs text-gray-400">{subtitle}</Text>
+        ) : null}
+      </Card>
+    </View>
+  );
+}
+
+// ─── Dashboard Screen ─────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -15,7 +45,7 @@ export default function DashboardScreen() {
     try {
       setIsLoggingOut(true);
       await logout();
-      // On success AuthGuard redirects to login once token is cleared in Zustand.
+      // AuthGuard redirects to login once token is cleared in Zustand.
     } catch (error) {
       // TODO: replace with toast notification when notification system is in place.
       console.error("Logout failed:", error);
@@ -26,64 +56,92 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white px-6 py-10">
-      <View className="mb-10">
-        <Text className="mb-2 text-3xl font-bold text-gray-900">SALO</Text>
-        <Text className="text-base text-gray-500">Owner Dashboard</Text>
+    <ScrollView
+      className="flex-1 bg-gray-50"
+      contentContainerStyle={{ paddingBottom: 32 }}
+    >
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      {/* TODO: replace pt-14 with SafeAreaView when building header component. */}
+      <View className="bg-white px-5 pb-5 pt-14">
+        <Text className="text-2xl font-bold text-gray-900">SALO</Text>
+        <Text className="mt-0.5 text-sm text-gray-500">Owner Dashboard</Text>
       </View>
 
-      <View className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
-          Welcome back
+      <View className="px-5 pt-5">
+        {/* ── Summary cards ───────────────────────────────────────────────── */}
+        {/* TODO (Phase B): replace placeholder values with Apollo queries.    */}
+        <Text className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Overview
         </Text>
-        <Text className="text-sm leading-6 text-gray-600">
-          Manage orders, inventory, and customers from one place.
+
+        <SummaryCard
+          title="Pending Orders"
+          value="--"
+          subtitle="Awaiting confirmation"
+        />
+        <SummaryCard
+          title="Today's Orders"
+          value="--"
+          subtitle="Orders placed today"
+        />
+        <SummaryCard
+          title="Low Stock Alerts"
+          value="--"
+          subtitle="Items below threshold"
+        />
+        <SummaryCard
+          title="Recent Activity"
+          value="--"
+          subtitle="Last 24 hours"
+        />
+
+        {/* ── Navigation ──────────────────────────────────────────────────── */}
+        <Text className="mb-3 mt-6 text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Manage
         </Text>
+
+        <View className="mb-3">
+          <Button
+            variant="primary"
+            fullWidth
+            onPress={() => router.navigate("/orders")}
+          >
+            Orders
+          </Button>
+        </View>
+
+        <View className="mb-3">
+          <Button
+            variant="secondary"
+            fullWidth
+            onPress={() => router.navigate("/inventory")}
+          >
+            Inventory
+          </Button>
+        </View>
+
+        <View className="mb-3">
+          <Button
+            variant="secondary"
+            fullWidth
+            onPress={() => router.navigate("/customers")}
+          >
+            Customers
+          </Button>
+        </View>
+
+        {/* ── Logout ──────────────────────────────────────────────────────── */}
+        <View className="mt-6">
+          <Button
+            variant="danger"
+            fullWidth
+            loading={isLoggingOut}
+            onPress={handleLogout}
+          >
+            Logout
+          </Button>
+        </View>
       </View>
-
-      <View className="gap-3">
-        <TouchableOpacity
-          className="rounded-2xl bg-gray-900 px-5 py-4"
-          onPress={() => router.navigate("/orders")}
-        >
-          <Text className="text-base font-semibold text-white">
-            Go to Orders
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          className="rounded-2xl border border-gray-200 bg-white px-5 py-4"
-          onPress={() => router.navigate("/inventory")}
-        >
-          <Text className="text-base font-semibold text-gray-900">
-            Go to Inventory
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          className="rounded-2xl border border-gray-200 bg-white px-5 py-4"
-          onPress={() => router.navigate("/customers")}
-        >
-          <Text className="text-base font-semibold text-gray-900">
-            Go to Customers
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View className="mt-auto pt-8">
-        <TouchableOpacity
-          className="items-center rounded-2xl border border-red-200 bg-red-50 px-5 py-4"
-          onPress={handleLogout}
-          disabled={isLoggingOut}
-          style={{ opacity: isLoggingOut ? 0.5 : 1 }}
-        >
-          {isLoggingOut ? (
-            <ActivityIndicator color="#dc2626" />
-          ) : (
-            <Text className="text-base font-semibold text-red-600">Logout</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+    </ScrollView>
   );
 }
