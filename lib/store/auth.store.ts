@@ -17,7 +17,7 @@ type AuthState = {
   setToken: (token: string) => void;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   isHydrated: false,
   isLoading: false,
@@ -77,9 +77,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
       set({ token: accessToken, isLoading: false });
-
-      // TODO (Phase B): store user.role here if role-aware UI is needed.
-      // TODO (Phase B): implement tokenVersion validation on refresh.
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Login failed",
@@ -88,9 +85,33 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  // try/finally guarantees auth state is always cleared even if storage throws.
-  // Clears error too so stale messages don't persist after logout.
+  // Calls the backend logout mutation first to increment tokenVersion,
+  // then clears local tokens. This order ensures the refresh token is
+  // invalidated server-side before being deleted from the device.
   logout: async () => {
+    const currentToken = get().token;
+
+    // Best-effort server-side revocation — increment tokenVersion on backend.
+    // Proceed with local cleanup even if this fails (network issues, etc.).
+    if (currentToken) {
+      try {
+        await fetch(Config.API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify({
+            query: `mutation Logout { logout }`,
+          }),
+        });
+      } catch {
+        // Network failure — proceed with local cleanup regardless.
+        // Token will expire naturally; tokenVersion not incremented.
+      }
+    }
+
+    // Always clear local state regardless of server call outcome.
     try {
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
