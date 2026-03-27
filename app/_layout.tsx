@@ -1,5 +1,6 @@
 import { apolloClient } from "@/lib/apollo/client";
 import { useAuthStore } from "@/lib/store/auth.store";
+import { useThemeStore } from "@/lib/store/theme.store";
 import { ApolloProvider } from "@apollo/client/react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,17 +11,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
+  const hydrateTheme = useThemeStore((state) => state.hydrate);
+
   const segments = useSegments();
   const router = useRouter();
 
-  // Hydrate once on mount — reads SecureStore and sets token + isHydrated.
-  // hydrate() is idempotent: safe if called more than once (Strict Mode / dev).
+  // Hydrate auth + theme once on mount.
+  // Both are idempotent — safe under Strict Mode double-invoke in dev.
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    hydrateTheme();
+  }, [hydrate, hydrateTheme]);
 
   // Redirect based on auth state — only runs after hydration is complete.
-  // router and segments included in deps per exhaustive-deps convention.
   useEffect(() => {
     if (!isHydrated) return;
 
@@ -31,6 +34,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (token && inAuthGroup) {
       router.replace("/(app)");
     }
+
     // TODO: treat stored token as provisional — add forced logout on
     // unrecoverable 401 once tokenVersion is implemented in backend.
   }, [token, isHydrated, segments, router]);

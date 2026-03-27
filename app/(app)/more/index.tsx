@@ -1,19 +1,25 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import type { ThemeColors } from "@/constants/Colors";
+import { useColors } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
+import {
+  ACCENT_OPTIONS,
+  useThemeStore,
+  type AccentKey,
+} from "@/lib/store/theme.store";
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    Switch,
-    Text,
-    useColorScheme,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Switch,
+  Text,
+  useColorScheme,
+  View,
 } from "react-native";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
@@ -97,7 +103,7 @@ function Section({
           borderRadius: 14,
           borderWidth: 1,
           borderColor: C.border,
-          overflow: "hidden",
+          // NO overflow hidden — clipping was hiding the swatches
         }}
       >
         {children}
@@ -174,6 +180,38 @@ function Row({
   );
 }
 
+// ─── Color Swatch ─────────────────────────────────────────────────────────────
+
+function ColorSwatch({
+  color,
+  selected,
+  onPress,
+}: {
+  color: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: color,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 14, // explicit margin instead of gap
+        opacity: pressed ? 0.75 : 1,
+        borderWidth: selected ? 3 : 0,
+        borderColor: "#ffffff",
+      })}
+    >
+      {selected && <Ionicons name="checkmark" size={20} color="#ffffff" />}
+    </Pressable>
+  );
+}
+
 // ─── Team Member Row ──────────────────────────────────────────────────────────
 
 function TeamMemberRow({
@@ -200,7 +238,6 @@ function TeamMemberRow({
         borderBottomColor: C.border,
       }}
     >
-      {/* Avatar */}
       <View
         style={{
           width: 36,
@@ -217,7 +254,6 @@ function TeamMemberRow({
         </Text>
       </View>
 
-      {/* Info */}
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 14, fontWeight: "600", color: C.textPrimary }}>
           {member.username}
@@ -239,11 +275,7 @@ function TeamMemberRow({
           </View>
           {member.email && (
             <Text
-              style={{
-                fontSize: 11,
-                color: C.textTertiary,
-                marginLeft: 8,
-              }}
+              style={{ fontSize: 11, color: C.textTertiary, marginLeft: 8 }}
               numberOfLines={1}
             >
               {member.email}
@@ -252,7 +284,6 @@ function TeamMemberRow({
         </View>
       </View>
 
-      {/* Remove button */}
       <Pressable
         onPress={() => onDeactivate(member.id, member.username)}
         style={({ pressed }) => ({
@@ -277,17 +308,18 @@ export default function MoreScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const accentKey = useThemeStore((s) => s.accentKey);
+  const setAccent = useThemeStore((s) => s.setAccent);
 
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // ── Team data (owner/admin only) ──────────────────────────────────────────
   const { data: teamData, refetch: refetchTeam } = useQuery<{
     listUsers: TeamMember[];
   }>(LIST_USERS, { skip: !isOwnerOrAdmin });
@@ -336,7 +368,7 @@ export default function MoreScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
@@ -356,14 +388,11 @@ export default function MoreScreen() {
           >
             More
           </Text>
-
-          {/* Logged in as */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               marginTop: 8,
-              gap: 8,
             }}
           >
             <View
@@ -372,6 +401,7 @@ export default function MoreScreen() {
                 borderRadius: 6,
                 paddingHorizontal: 8,
                 paddingVertical: 3,
+                marginRight: 8,
               }}
             >
               <Text
@@ -389,22 +419,60 @@ export default function MoreScreen() {
         <View style={{ paddingHorizontal: 20 }}>
           {/* ── Appearance ────────────────────────────────────────────── */}
           <Section title="Appearance" C={C}>
+            {/* Dark mode row */}
             <Row
               icon="moon-outline"
               label="Dark Mode"
               C={C}
-              last
               right={
                 <Switch
                   value={scheme === "dark"}
                   disabled
-                  // System-controlled — shows current state.
-                  // Full manual override requires a theme store (future enhancement).
                   trackColor={{ false: C.border, true: C.accent }}
                   thumbColor={C.textPrimary}
                 />
               }
             />
+
+            {/* Accent color picker — explicit sizing, no gap, no flex collapse */}
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: C.border,
+                paddingHorizontal: 16,
+                paddingTop: 14,
+                paddingBottom: 18,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.textSecondary,
+                  marginBottom: 14,
+                }}
+              >
+                Accent Color
+              </Text>
+
+              {/* Row of swatches — explicit height, marginRight spacing */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  height: 44,
+                }}
+              >
+                {ACCENT_OPTIONS.map((option) => (
+                  <ColorSwatch
+                    key={option.key}
+                    color={scheme === "dark" ? option.dark : option.light}
+                    selected={accentKey === option.key}
+                    onPress={() => setAccent(option.key as AccentKey)}
+                  />
+                ))}
+              </View>
+            </View>
           </Section>
 
           {/* ── Notifications ─────────────────────────────────────────── */}
@@ -445,8 +513,6 @@ export default function MoreScreen() {
                   />
                 ))
               )}
-
-              {/* Add member button */}
               <Pressable
                 onPress={() => router.push("/more/add-member")}
                 style={({ pressed }) => ({
@@ -456,7 +522,6 @@ export default function MoreScreen() {
                   paddingVertical: 14,
                   borderTopWidth: 1,
                   borderTopColor: C.border,
-                  gap: 8,
                   opacity: pressed ? 0.7 : 1,
                 })}
               >
@@ -464,6 +529,7 @@ export default function MoreScreen() {
                   name="person-add-outline"
                   size={16}
                   color={C.accent}
+                  style={{ marginRight: 8 }}
                 />
                 <Text
                   style={{ fontSize: 14, fontWeight: "600", color: C.accent }}
@@ -492,7 +558,6 @@ export default function MoreScreen() {
             />
           </Section>
 
-          {/* ── App info ──────────────────────────────────────────────── */}
           <Text
             style={{
               textAlign: "center",

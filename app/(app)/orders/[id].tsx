@@ -1,6 +1,4 @@
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Colors, type ThemeColors } from "@/constants/Colors";
 import {
   CANCEL_ORDER,
   UPDATE_ORDER_STATUS,
@@ -8,13 +6,16 @@ import {
 } from "@/lib/graphql/mutations/order.mutations";
 import { GET_ORDER } from "@/lib/graphql/queries/order.queries";
 import { useMutation, useQuery } from "@apollo/client/react";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
+  StatusBar,
   Text,
+  useColorScheme,
   View,
 } from "react-native";
 
@@ -62,9 +63,7 @@ type Order = {
   notes: OrderNote[];
 };
 
-type GetOrderData = {
-  order: Order;
-};
+type GetOrderData = { order: Order };
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -86,16 +85,39 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
+const STATUS_COLORS: Record<OrderStatus, string> = {
+  pending: "#f59e0b",
+  confirmed: "#6366f1",
+  processing: "#3b82f6",
+  shipped: "#8b5cf6",
+  delivered: "#10b981",
+  cancelled: "#ef4444",
+};
+
+const PAYMENT_COLORS: Record<PaymentStatus, string> = {
+  unpaid: "#ef4444",
+  partial: "#f59e0b",
+  paid: "#10b981",
+};
+
+const NOTE_KIND_LABELS: Record<NoteKind, string> = {
+  internal: "Internal",
+  system: "System",
+  customer_message: "Customer",
+};
+
+const NOTE_KIND_COLORS: Record<NoteKind, string> = {
+  internal: "#6366f1",
+  system: "#9a9284",
+  customer_message: "#3b82f6",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
 });
-
-function formatCurrency(amount: number): string {
-  return currencyFormatter.format(amount);
-}
 
 function formatDate(isoString: string): string {
   return new Date(isoString).toLocaleDateString("es-MX", {
@@ -107,28 +129,180 @@ function formatDate(isoString: string): string {
   });
 }
 
-const NOTE_KIND_LABELS: Record<NoteKind, string> = {
-  internal: "Internal",
-  system: "System",
-  customer_message: "Customer",
-};
+// ─── Section ──────────────────────────────────────────────────────────────────
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: string }) {
+function Section({
+  title,
+  children,
+  C,
+}: {
+  title: string;
+  children: React.ReactNode;
+  C: ThemeColors;
+}) {
   return (
-    <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-      {children}
-    </Text>
+    <View style={{ marginBottom: 20 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1.5,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 10,
+        }}
+      >
+        {title}
+      </Text>
+      <View
+        style={{
+          backgroundColor: C.surface,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: C.border,
+          overflow: "hidden",
+        }}
+      >
+        {children}
+      </View>
+    </View>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+// ─── Info Row ─────────────────────────────────────────────────────────────────
+
+function InfoRow({
+  label,
+  value,
+  last,
+  C,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+  C: ThemeColors;
+}) {
   return (
-    <View className="flex-row items-center justify-between py-1.5">
-      <Text className="text-sm text-gray-500">{label}</Text>
-      <Text className="text-sm font-medium text-gray-900">{value}</Text>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderBottomWidth: last ? 0 : 1,
+        borderBottomColor: C.border,
+      }}
+    >
+      <Text style={{ fontSize: 13, color: C.textSecondary }}>{label}</Text>
+      <Text style={{ fontSize: 13, fontWeight: "600", color: C.textPrimary }}>
+        {value}
+      </Text>
     </View>
+  );
+}
+
+// ─── Badge ────────────────────────────────────────────────────────────────────
+
+function StatusBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <View
+      style={{
+        backgroundColor: color + "18",
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          color,
+          textTransform: "capitalize",
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ─── Action Button ────────────────────────────────────────────────────────────
+
+function ActionButton({
+  label,
+  onPress,
+  loading,
+  destructive,
+  C,
+}: {
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  destructive?: boolean;
+  C: ThemeColors;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      style={({ pressed }) => ({
+        backgroundColor: destructive ? C.alertBg : C.accentMuted,
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: destructive ? C.alert + "40" : C.accent + "40",
+        opacity: pressed || loading ? 0.6 : 1,
+        marginBottom: 8,
+      })}
+    >
+      <Text
+        style={{
+          fontSize: 14,
+          fontWeight: "700",
+          color: destructive ? C.alert : C.accent,
+        }}
+      >
+        {loading ? "Updating…" : label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ─── Payment Button ───────────────────────────────────────────────────────────
+
+function PaymentButton({
+  label,
+  onPress,
+  loading,
+  C,
+}: {
+  label: string;
+  onPress: () => void;
+  loading: boolean;
+  C: ThemeColors;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      style={({ pressed }) => ({
+        flex: 1,
+        backgroundColor: C.surface,
+        borderRadius: 10,
+        paddingVertical: 12,
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: C.border,
+        opacity: pressed || loading ? 0.6 : 1,
+      })}
+    >
+      <Text style={{ fontSize: 13, fontWeight: "600", color: C.textPrimary }}>
+        {loading ? "…" : label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -138,16 +312,17 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  // Validate id before querying — params can be undefined or arrays at runtime.
+  const raw = useColorScheme();
+  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const C = Colors[scheme] as ThemeColors;
+
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
 
   const { data, loading, error } = useQuery<GetOrderData>(GET_ORDER, {
     variables: { orderId },
-    // Skip query entirely if id is invalid — avoids firing with bad variables.
     skip: !orderId,
   });
 
-  // refetchQueries guarantees the screen reflects latest state after mutations.
   const refetchOrder = [{ query: GET_ORDER, variables: { orderId } }];
 
   const [updateStatus, { loading: updatingStatus }] = useMutation(
@@ -167,16 +342,30 @@ export default function OrderDetailScreen() {
   // ── Invalid id ─────────────────────────────────────────────────────────────
   if (!orderId) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          paddingHorizontal: 32,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: C.textPrimary,
+            marginBottom: 8,
+          }}
+        >
           Invalid order
         </Text>
-        <Text className="mb-6 text-center text-sm text-gray-500">
-          This order ID is not valid.
-        </Text>
-        <Button variant="secondary" onPress={() => router.replace("/orders")}>
-          Back to Orders
-        </Button>
+        <Pressable onPress={() => router.replace("/orders")}>
+          <Text style={{ color: C.accent, fontWeight: "600" }}>
+            Back to Orders
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -184,42 +373,62 @@ export default function OrderDetailScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" color="#111827" />
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={C.accent} />
       </View>
     );
   }
 
-  // ── Network / server error ─────────────────────────────────────────────────
-  if (error) {
+  // ── Error ──────────────────────────────────────────────────────────────────
+  if (error || !data?.order) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
-          Couldn't load order
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          paddingHorizontal: 32,
+        }}
+      >
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={C.alert}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: C.textPrimary,
+            marginBottom: 8,
+          }}
+        >
+          {error ? "Couldn't load order" : "Order not found"}
         </Text>
-        <Text className="mb-6 text-center text-sm text-gray-500">
-          {error.message}
+        <Text
+          style={{
+            fontSize: 13,
+            color: C.textTertiary,
+            textAlign: "center",
+            marginBottom: 20,
+          }}
+        >
+          {error?.message ?? "This order may have been deleted."}
         </Text>
-        <Button variant="secondary" onPress={() => router.back()}>
-          Go back
-        </Button>
-      </View>
-    );
-  }
-
-  // ── Not found ──────────────────────────────────────────────────────────────
-  if (!data?.order) {
-    return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
-          Order not found
-        </Text>
-        <Text className="mb-6 text-center text-sm text-gray-500">
-          This order may have been deleted or does not exist.
-        </Text>
-        <Button variant="secondary" onPress={() => router.replace("/orders")}>
-          Back to Orders
-        </Button>
+        <Pressable onPress={() => router.replace("/orders")}>
+          <Text style={{ color: C.accent, fontWeight: "600" }}>
+            Back to Orders
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -228,13 +437,15 @@ export default function OrderDetailScreen() {
   const nextStatuses = VALID_TRANSITIONS[order.status];
   const canCancel =
     order.status !== "cancelled" && order.status !== "delivered";
+  const statusColor = STATUS_COLORS[order.status];
+  const paymentColor = PAYMENT_COLORS[order.paymentStatus];
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleUpdateStatus = (newStatus: OrderStatus) => {
     Alert.alert(
       "Update Status",
-      `Change order status to "${STATUS_LABELS[newStatus]}"?`,
+      `Change order to "${STATUS_LABELS[newStatus]}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -257,29 +468,23 @@ export default function OrderDetailScreen() {
   };
 
   const handleCancel = () => {
-    Alert.alert(
-      "Cancel Order",
-      "Are you sure you want to cancel this order? This cannot be undone.",
-      [
-        { text: "Keep Order", style: "cancel" },
-        {
-          text: "Cancel Order",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await cancelOrder({
-                variables: { input: { orderId } },
-              });
-            } catch (err) {
-              Alert.alert(
-                "Error",
-                err instanceof Error ? err.message : "Cancellation failed",
-              );
-            }
-          },
+    Alert.alert("Cancel Order", "Are you sure? This cannot be undone.", [
+      { text: "Keep Order", style: "cancel" },
+      {
+        text: "Cancel Order",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await cancelOrder({ variables: { input: { orderId } } });
+          } catch (err) {
+            Alert.alert(
+              "Error",
+              err instanceof Error ? err.message : "Cancellation failed",
+            );
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleUpdatePayment = (newStatus: PaymentStatus) => {
@@ -304,197 +509,323 @@ export default function OrderDetailScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <View className="bg-white px-5 pb-4 pt-14">
-        <Pressable
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/orders")
-          }
-          className="mb-3"
+    <>
+      <StatusBar
+        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
+      />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: C.background }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: 64,
+            paddingBottom: 20,
+          }}
         >
-          <Text className="text-sm font-medium text-gray-500">← Orders</Text>
-        </Pressable>
-        <Text className="text-2xl font-bold text-gray-900">
-          {order.orderNumber}
-        </Text>
-        <Text className="mt-0.5 text-xs text-gray-400">
-          {formatDate(order.createdAt)}
-        </Text>
-      </View>
+          <Pressable
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace("/orders")
+            }
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              marginBottom: 16,
+              opacity: pressed ? 0.6 : 1,
+              alignSelf: "flex-start",
+            })}
+          >
+            <Ionicons name="arrow-back" size={16} color={C.accent} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: C.accent }}>
+              Orders
+            </Text>
+          </Pressable>
 
-      <View className="px-5 pt-5 gap-5">
-        {/* ── Status ──────────────────────────────────────────────────────── */}
-        <View>
-          <SectionTitle>Status</SectionTitle>
-          <Card variant="white" padding="md">
-            <View className="flex-row gap-2 mb-3">
-              <Badge status={order.status} />
-              <Badge status={order.paymentStatus} />
-            </View>
-            <Row label="Channel" value={order.channel} />
-            <Row label="Updated" value={formatDate(order.updatedAt)} />
-          </Card>
-        </View>
-
-        {/* ── Customer ────────────────────────────────────────────────────── */}
-        <View>
-          <SectionTitle>Customer</SectionTitle>
-          <Card variant="white" padding="md">
-            {order.customerId ? (
-              <Row label="Customer ID" value={order.customerId} />
-            ) : (
-              <Text className="text-sm italic text-gray-400">
-                No customer assigned
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+            }}
+          >
+            <View>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "800",
+                  color: C.textPrimary,
+                  letterSpacing: -0.5,
+                }}
+              >
+                {order.orderNumber}
               </Text>
-            )}
-          </Card>
+              <Text
+                style={{ fontSize: 12, color: C.textTertiary, marginTop: 3 }}
+              >
+                {formatDate(order.createdAt)}
+              </Text>
+            </View>
+            <Text
+              style={{ fontSize: 22, fontWeight: "800", color: C.textPrimary }}
+            >
+              {currencyFormatter.format(order.total)}
+            </Text>
+          </View>
+
+          {/* Status badges */}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <StatusBadge label={order.status} color={statusColor} />
+            <StatusBadge label={order.paymentStatus} color={paymentColor} />
+          </View>
         </View>
 
-        {/* ── Items ───────────────────────────────────────────────────────── */}
-        <View>
-          <SectionTitle>Items</SectionTitle>
-          <Card variant="white" padding="md">
+        <View style={{ paddingHorizontal: 20 }}>
+          {/* ── Order info ──────────────────────────────────────────── */}
+          <Section title="Order Info" C={C}>
+            <InfoRow label="Channel" value={order.channel} C={C} />
+            <InfoRow
+              label="Updated"
+              value={formatDate(order.updatedAt)}
+              C={C}
+              last
+            />
+          </Section>
+
+          {/* ── Customer ────────────────────────────────────────────── */}
+          <Section title="Customer" C={C}>
+            {order.customerId ? (
+              <InfoRow
+                label="Customer ID"
+                value={order.customerId}
+                C={C}
+                last
+              />
+            ) : (
+              <View style={{ padding: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: C.textTertiary,
+                    fontStyle: "italic",
+                  }}
+                >
+                  No customer assigned
+                </Text>
+              </View>
+            )}
+          </Section>
+
+          {/* ── Items ───────────────────────────────────────────────── */}
+          <Section title="Items" C={C}>
             {order.items.map((item, index) => (
               <View
                 key={`${item.productId}-${item.size}-${item.color}`}
-                className={
-                  index < order.items.length - 1
-                    ? "mb-4 border-b border-gray-100 pb-4"
-                    : ""
-                }
+                style={{
+                  padding: 16,
+                  borderBottomWidth: index < order.items.length - 1 ? 1 : 0,
+                  borderBottomColor: C.border,
+                }}
               >
-                <Text className="mb-1 text-sm font-semibold text-gray-900">
-                  {item.productName}
-                </Text>
-                <Text className="mb-2 text-xs text-gray-500">
-                  {item.size} · {item.color}
-                </Text>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs text-gray-500">
-                    {item.quantity} × {formatCurrency(item.unitPrice)}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: C.textPrimary,
+                      flex: 1,
+                      marginRight: 8,
+                    }}
+                  >
+                    {item.productName}
                   </Text>
-                  <Text className="text-xs font-semibold text-gray-900">
-                    {formatCurrency(item.lineTotal)}
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: C.textPrimary,
+                    }}
+                  >
+                    {currencyFormatter.format(item.lineTotal)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: C.textTertiary }}>
+                    {item.size} · {item.color}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: C.textTertiary }}>
+                    {item.quantity} × {currencyFormatter.format(item.unitPrice)}
                   </Text>
                 </View>
               </View>
             ))}
-          </Card>
-        </View>
+          </Section>
 
-        {/* ── Payment ─────────────────────────────────────────────────────── */}
-        <View>
-          <SectionTitle>Payment</SectionTitle>
-          <Card variant="white" padding="md">
-            <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
-            <View className="mt-1 border-t border-gray-100 pt-2">
-              <Row label="Total" value={formatCurrency(order.total)} />
-            </View>
-            <View className="mt-2">
-              <Badge status={order.paymentStatus} />
-            </View>
+          {/* ── Payment ─────────────────────────────────────────────── */}
+          <Section title="Payment" C={C}>
+            <InfoRow
+              label="Subtotal"
+              value={currencyFormatter.format(order.subtotal)}
+              C={C}
+            />
+            <InfoRow
+              label="Total"
+              value={currencyFormatter.format(order.total)}
+              C={C}
+              last
+            />
+
             {order.paymentStatus !== "paid" && (
-              <View className="mt-4 gap-2">
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  padding: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: C.border,
+                }}
+              >
                 {order.paymentStatus === "unpaid" && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    fullWidth
-                    loading={updatingPayment}
+                  <PaymentButton
+                    label="Mark as Partial"
                     onPress={() => handleUpdatePayment("partial")}
-                  >
-                    Mark as Partial
-                  </Button>
+                    loading={updatingPayment}
+                    C={C}
+                  />
                 )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  fullWidth
-                  loading={updatingPayment}
+                <PaymentButton
+                  label="Mark as Paid"
                   onPress={() => handleUpdatePayment("paid")}
-                >
-                  Mark as Paid
-                </Button>
+                  loading={updatingPayment}
+                  C={C}
+                />
               </View>
             )}
-          </Card>
-        </View>
+          </Section>
 
-        {/* ── Notes ───────────────────────────────────────────────────────── */}
-        <View>
-          <SectionTitle>Activity</SectionTitle>
-          <Card variant="white" padding="md">
+          {/* ── Activity ────────────────────────────────────────────── */}
+          <Section title="Activity" C={C}>
             {order.notes.length === 0 ? (
-              <Text className="text-sm italic text-gray-400">
-                No activity yet
-              </Text>
-            ) : (
-              [...order.notes].reverse().map((note, index, arr) => (
-                <View
-                  // Composite key — notes have no id, createdAt+kind is stable enough.
-                  key={`${note.createdAt}-${note.kind}`}
-                  className={
-                    index < arr.length - 1
-                      ? "mb-4 border-b border-gray-100 pb-4"
-                      : ""
-                  }
+              <View style={{ padding: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: C.textTertiary,
+                    fontStyle: "italic",
+                  }}
                 >
-                  <View className="mb-1 flex-row items-center justify-between">
-                    <Badge
-                      label={NOTE_KIND_LABELS[note.kind]}
-                      color={
-                        note.kind === "system"
-                          ? "gray"
-                          : note.kind === "customer_message"
-                            ? "blue"
-                            : "indigo"
-                      }
-                    />
-                    <Text className="text-xs text-gray-400">
-                      {formatDate(note.createdAt)}
+                  No activity yet
+                </Text>
+              </View>
+            ) : (
+              [...order.notes].reverse().map((note, index, arr) => {
+                const noteColor = NOTE_KIND_COLORS[note.kind];
+                return (
+                  <View
+                    key={`${note.createdAt}-${note.kind}`}
+                    style={{
+                      padding: 16,
+                      borderBottomWidth: index < arr.length - 1 ? 1 : 0,
+                      borderBottomColor: C.border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <View
+                        style={{
+                          backgroundColor: noteColor + "18",
+                          borderRadius: 5,
+                          paddingHorizontal: 7,
+                          paddingVertical: 2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "700",
+                            color: noteColor,
+                          }}
+                        >
+                          {NOTE_KIND_LABELS[note.kind]}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: C.textTertiary }}>
+                        {formatDate(note.createdAt)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: C.textSecondary,
+                        lineHeight: 18,
+                      }}
+                    >
+                      {note.message}
                     </Text>
                   </View>
-                  <Text className="text-sm text-gray-700">{note.message}</Text>
-                </View>
-              ))
+                );
+              })
             )}
-          </Card>
-        </View>
+          </Section>
 
-        {/* ── Actions ─────────────────────────────────────────────────────── */}
-        {(nextStatuses.length > 0 || canCancel) && (
-          <View>
-            <SectionTitle>Actions</SectionTitle>
-            <View className="gap-3">
+          {/* ── Actions ─────────────────────────────────────────────── */}
+          {(nextStatuses.length > 0 || canCancel) && (
+            <View style={{ marginBottom: 8 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1.5,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
+                  marginBottom: 10,
+                }}
+              >
+                Actions
+              </Text>
+
               {nextStatuses.map((nextStatus) => (
-                <Button
+                <ActionButton
                   key={nextStatus}
-                  variant="primary"
-                  fullWidth
-                  loading={isActionLoading}
+                  label={`Move to ${STATUS_LABELS[nextStatus]}`}
                   onPress={() => handleUpdateStatus(nextStatus)}
-                >
-                  {`Move to ${STATUS_LABELS[nextStatus]}`}
-                </Button>
-              ))}
-              {canCancel && (
-                <Button
-                  variant="danger"
-                  fullWidth
                   loading={isActionLoading}
+                  C={C}
+                />
+              ))}
+
+              {canCancel && (
+                <ActionButton
+                  label="Cancel Order"
                   onPress={handleCancel}
-                >
-                  Cancel Order
-                </Button>
+                  loading={isActionLoading}
+                  destructive
+                  C={C}
+                />
               )}
             </View>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          )}
+        </View>
+      </ScrollView>
+    </>
   );
 }
