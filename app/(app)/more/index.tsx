@@ -1,11 +1,7 @@
 import type { ThemeColors } from "@/constants/Colors";
 import { useColors } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
-import {
-  ACCENT_OPTIONS,
-  useThemeStore,
-  type AccentKey,
-} from "@/lib/store/theme.store";
+import { useThemeStore, type AccentKey } from "@/lib/store/theme.store";
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +14,7 @@ import {
   StatusBar,
   Switch,
   Text,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
@@ -103,7 +100,6 @@ function Section({
           borderRadius: 14,
           borderWidth: 1,
           borderColor: C.border,
-          // NO overflow hidden — clipping was hiding the swatches
         }}
       >
         {children}
@@ -180,38 +176,6 @@ function Row({
   );
 }
 
-// ─── Color Swatch ─────────────────────────────────────────────────────────────
-
-function ColorSwatch({
-  color,
-  selected,
-  onPress,
-}: {
-  color: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: color,
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 14, // explicit margin instead of gap
-        opacity: pressed ? 0.75 : 1,
-        borderWidth: selected ? 3 : 0,
-        borderColor: "#ffffff",
-      })}
-    >
-      {selected && <Ionicons name="checkmark" size={20} color="#ffffff" />}
-    </Pressable>
-  );
-}
-
 // ─── Team Member Row ──────────────────────────────────────────────────────────
 
 function TeamMemberRow({
@@ -226,7 +190,6 @@ function TeamMemberRow({
   last: boolean;
 }) {
   const roleColor = ROLE_COLORS[member.role] ?? C.textSecondary;
-
   return (
     <View
       style={{
@@ -253,7 +216,6 @@ function TeamMemberRow({
           {member.username[0].toUpperCase()}
         </Text>
       </View>
-
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 14, fontWeight: "600", color: C.textPrimary }}>
           {member.username}
@@ -283,21 +245,19 @@ function TeamMemberRow({
           )}
         </View>
       </View>
-
-      <Pressable
+      <TouchableOpacity
         onPress={() => onDeactivate(member.id, member.username)}
-        style={({ pressed }) => ({
+        style={{
           width: 30,
           height: 30,
           borderRadius: 8,
           backgroundColor: C.alertBg,
           alignItems: "center",
           justifyContent: "center",
-          opacity: pressed ? 0.6 : 1,
-        })}
+        }}
       >
         <Ionicons name="person-remove-outline" size={14} color={C.alert} />
-      </Pressable>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -316,14 +276,12 @@ export default function MoreScreen() {
   const C = useColors();
 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
-
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { data: teamData, refetch: refetchTeam } = useQuery<{
     listUsers: TeamMember[];
   }>(LIST_USERS, { skip: !isOwnerOrAdmin });
-
   const [deactivateUser] = useMutation(DEACTIVATE_USER, {
     onCompleted: () => refetchTeam(),
   });
@@ -361,6 +319,16 @@ export default function MoreScreen() {
 
   const members = teamData?.listUsers ?? [];
 
+  // Hardcoded swatch colors for dark/light — no map, no import needed
+  const swatches: { key: AccentKey; darkColor: string; lightColor: string }[] =
+    [
+      { key: "sand", darkColor: "#c8b99a", lightColor: "#8b6f47" },
+      { key: "amber", darkColor: "#f59e0b", lightColor: "#d97706" },
+      { key: "indigo", darkColor: "#818cf8", lightColor: "#4f46e5" },
+      { key: "rose", darkColor: "#fb7185", lightColor: "#e11d48" },
+      { key: "emerald", darkColor: "#34d399", lightColor: "#059669" },
+    ];
+
   return (
     <>
       <StatusBar
@@ -370,13 +338,9 @@ export default function MoreScreen() {
         style={{ flex: 1, backgroundColor: C.background }}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {/* ── Header ──────────────────────────────────────────────────── */}
+        {/* Header */}
         <View
-          style={{
-            paddingHorizontal: 20,
-            paddingTop: 64,
-            paddingBottom: 20,
-          }}
+          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
         >
           <Text
             style={{
@@ -389,11 +353,7 @@ export default function MoreScreen() {
             More
           </Text>
           <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: 8,
-            }}
+            style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}
           >
             <View
               style={{
@@ -417,9 +377,8 @@ export default function MoreScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 20 }}>
-          {/* ── Appearance ────────────────────────────────────────────── */}
+          {/* Appearance */}
           <Section title="Appearance" C={C}>
-            {/* Dark mode row */}
             <Row
               icon="moon-outline"
               label="Dark Mode"
@@ -434,7 +393,7 @@ export default function MoreScreen() {
               }
             />
 
-            {/* Accent color picker — explicit sizing, no gap, no flex collapse */}
+            {/* Color picker — hardcoded swatches, no map */}
             <View
               style={{
                 borderTopWidth: 1,
@@ -449,33 +408,43 @@ export default function MoreScreen() {
                   fontSize: 13,
                   fontWeight: "600",
                   color: C.textSecondary,
-                  marginBottom: 14,
+                  marginBottom: 16,
                 }}
               >
                 Accent Color
               </Text>
-
-              {/* Row of swatches — explicit height, marginRight spacing */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  height: 44,
-                }}
-              >
-                {ACCENT_OPTIONS.map((option) => (
-                  <ColorSwatch
-                    key={option.key}
-                    color={scheme === "dark" ? option.dark : option.light}
-                    selected={accentKey === option.key}
-                    onPress={() => setAccent(option.key as AccentKey)}
-                  />
-                ))}
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {swatches.map((s) => {
+                  const color = scheme === "dark" ? s.darkColor : s.lightColor;
+                  const selected = accentKey === s.key;
+                  return (
+                    <TouchableOpacity
+                      key={s.key}
+                      onPress={() => setAccent(s.key)}
+                      activeOpacity={0.75}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: color,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 14,
+                        borderWidth: selected ? 3 : 0,
+                        borderColor: "#ffffff",
+                      }}
+                    >
+                      {selected && (
+                        <Ionicons name="checkmark" size={20} color="#ffffff" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </Section>
 
-          {/* ── Notifications ─────────────────────────────────────────── */}
+          {/* Notifications */}
           <Section title="Notifications" C={C}>
             <Row
               icon="notifications-outline"
@@ -493,7 +462,7 @@ export default function MoreScreen() {
             />
           </Section>
 
-          {/* ── Team (owner/admin only) ───────────────────────────────── */}
+          {/* Team */}
           {isOwnerOrAdmin && (
             <Section title="Team" C={C}>
               {members.length === 0 ? (
@@ -513,17 +482,17 @@ export default function MoreScreen() {
                   />
                 ))
               )}
-              <Pressable
+              <TouchableOpacity
                 onPress={() => router.push("/more/add-member")}
-                style={({ pressed }) => ({
+                activeOpacity={0.7}
+                style={{
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 14,
                   borderTopWidth: 1,
                   borderTopColor: C.border,
-                  opacity: pressed ? 0.7 : 1,
-                })}
+                }}
               >
                 <Ionicons
                   name="person-add-outline"
@@ -536,11 +505,11 @@ export default function MoreScreen() {
                 >
                   Add Team Member
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </Section>
           )}
 
-          {/* ── Account ───────────────────────────────────────────────── */}
+          {/* Account */}
           <Section title="Account" C={C}>
             <Row
               icon="key-outline"
