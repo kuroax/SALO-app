@@ -15,13 +15,15 @@ const TAB_ICONS: Record<
   orders: { active: "receipt", inactive: "receipt-outline" },
   inventory: { active: "cube", inactive: "cube-outline" },
   customers: { active: "people", inactive: "people-outline" },
+  more: {
+    active: "ellipsis-horizontal-circle",
+    inactive: "ellipsis-horizontal-circle-outline",
+  },
 };
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function AppLayout() {
-  // FIX: useColorScheme() can return 'unspecified' on some Expo versions.
-  // Narrow explicitly to 'light' | 'dark' before indexing Colors.
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
   const C = Colors[scheme];
@@ -65,10 +67,11 @@ export default function AppLayout() {
         };
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Dashboard" }} />
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="orders" options={{ title: "Orders" }} />
       <Tabs.Screen name="inventory" options={{ title: "Inventory" }} />
       <Tabs.Screen name="customers" options={{ title: "Customers" }} />
+      <Tabs.Screen name="more" options={{ title: "More" }} />
     </Tabs>
   );
 }

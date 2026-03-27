@@ -4,9 +4,21 @@ import { create } from "zustand";
 
 const ACCESS_TOKEN_KEY = "salo_access_token";
 const REFRESH_TOKEN_KEY = "salo_refresh_token";
+const USER_KEY = "salo_user";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type UserRole = "owner" | "admin" | "sales" | "inventory" | "support";
+
+export type AuthUser = {
+  id: string;
+  username: string;
+  role: UserRole;
+};
 
 type AuthState = {
   token: string | null;
+  user: AuthUser | null; // now persisted — role-gating reads from here
   isHydrated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -17,21 +29,28 @@ type AuthState = {
   setToken: (token: string) => void;
 };
 
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
+  user: null,
   isHydrated: false,
   isLoading: false,
   error: null,
 
-  // Merged into single set() call to prevent split renders causing
-  // AuthGuard redirect effect to fire before token state is updated.
+  // Restores both the access token and the cached user from SecureStore.
+  // Merged into a single set() call to prevent split renders causing
+  // AuthGuard redirect effect to fire before both fields are updated.
   hydrate: async () => {
     try {
       const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-      set({ token, isHydrated: true });
+      const userJson = await SecureStore.getItemAsync(USER_KEY);
+      const user: AuthUser | null = userJson ? JSON.parse(userJson) : null;
+      set({ token, user, isHydrated: true });
     } catch {
       set({
         token: null,
+        user: null,
         error: "Failed to restore session.",
         isHydrated: true,
       });
@@ -58,9 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
       const json = await response.json();
       const { data, errors } = json;
@@ -69,14 +86,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const accessToken = data?.login?.accessToken;
       const refreshToken = data?.login?.refreshToken;
+      const rawUser = data?.login?.user;
 
-      if (!accessToken || !refreshToken) {
+      if (!accessToken || !refreshToken || !rawUser) {
         throw new Error("Invalid response from server");
       }
 
+      const user: AuthUser = {
+        id: rawUser.id,
+        username: rawUser.username,
+        role: rawUser.role,
+      };
+
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
-      set({ token: accessToken, isLoading: false });
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+
+      set({ token: accessToken, user, isLoading: false });
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : "Login failed",
@@ -91,8 +117,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     const currentToken = get().token;
 
-    // Best-effort server-side revocation — increment tokenVersion on backend.
-    // Proceed with local cleanup even if this fails (network issues, etc.).
     if (currentToken) {
       try {
         await fetch(Config.API_URL, {
@@ -101,24 +125,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${currentToken}`,
           },
-          body: JSON.stringify({
-            query: `mutation Logout { logout }`,
-          }),
+          body: JSON.stringify({ query: `mutation Logout { logout }` }),
         });
       } catch {
         // Network failure — proceed with local cleanup regardless.
-        // Token will expire naturally; tokenVersion not incremented.
       }
     }
 
-    // Always clear local state regardless of server call outcome.
     try {
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(USER_KEY);
     } catch {
       // Storage deletion failed — proceed with state cleanup anyway.
     } finally {
-      set({ token: null, error: null });
+      set({ token: null, user: null, error: null });
     }
   },
 
