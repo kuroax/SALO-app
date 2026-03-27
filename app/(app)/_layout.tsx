@@ -1,95 +1,169 @@
 import { useColors } from "@/lib/hooks/useColors";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { type ComponentProps } from "react";
-import { Text, View } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
-// ─── Tab icon ─────────────────────────────────────────────────────────────────
+const TAB_BAR_HEIGHT = 64;
 
-function TabIcon({
-  icon,
-  iconActive,
-  label,
-  focused,
-  accentColor,
-}: {
+// ─── Tab config ───────────────────────────────────────────────────────────────
+
+type TabDef = {
+  name: "index" | "orders" | "inventory" | "customers" | "more";
+  label: string;
   icon: IoniconsName;
   iconActive: IoniconsName;
-  label: string;
-  focused: boolean;
-  accentColor: string;
-}) {
-  return (
-    <View
-      style={{
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-        borderRadius: 16,
-        backgroundColor: focused ? "#2e2e2e" : "transparent",
-        minWidth: 52,
-      }}
-    >
-      {focused && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            width: 20,
-            height: 2,
-            borderRadius: 1,
-            backgroundColor: accentColor,
-          }}
-        />
-      )}
-      <Ionicons
-        name={focused ? iconActive : icon}
-        size={20}
-        color={focused ? accentColor : "#5a5550"}
-      />
-      <Text
-        numberOfLines={1}
+};
+
+const TABS: readonly TabDef[] = [
+  { name: "index", label: "Home", icon: "grid-outline", iconActive: "grid" },
+  {
+    name: "orders",
+    label: "Orders",
+    icon: "receipt-outline",
+    iconActive: "receipt",
+  },
+  {
+    name: "inventory",
+    label: "Inventory",
+    icon: "cube-outline",
+    iconActive: "cube",
+  },
+  {
+    name: "customers",
+    label: "Customers",
+    icon: "people-outline",
+    iconActive: "people",
+  },
+  {
+    name: "more",
+    label: "More",
+    icon: "ellipsis-horizontal-circle-outline",
+    iconActive: "ellipsis-horizontal-circle",
+  },
+];
+
+function tabHref(name: TabDef["name"]): string {
+  return name === "index" ? "/" : `/${name}`;
+}
+
+function isActive(name: TabDef["name"], pathname: string): boolean {
+  if (name === "index") return pathname === "/";
+  return pathname === `/${name}` || pathname.startsWith(`/${name}/`);
+}
+
+// ─── Custom tab button ────────────────────────────────────────────────────────
+// tabBarButton completely replaces React Navigation's item wrapper,
+// so we own the height, padding and centering — no internal offsets to fight.
+
+function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
+  return function TabButton() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const focused = isActive(tab.name, pathname);
+
+    return (
+      <TouchableOpacity
+        onPress={() => router.navigate(tabHref(tab.name) as never)}
+        activeOpacity={0.75}
         style={{
-          fontSize: 9,
-          fontWeight: focused ? "700" : "500",
-          color: focused ? accentColor : "#5a5550",
-          marginTop: 2,
-          letterSpacing: 0.1,
+          width: tabWidth,
+          height: TAB_BAR_HEIGHT,
+          alignItems: "center",
+          justifyContent: "center", // true center — no RN padding fighting us
         }}
       >
-        {label}
-      </Text>
-    </View>
-  );
+        <View
+          style={{
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 7,
+            paddingHorizontal: 4,
+            borderRadius: 18,
+            backgroundColor: focused ? "#2e2e2e" : "transparent",
+            width: tabWidth - 6,
+          }}
+        >
+          {focused && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                width: 16,
+                height: 2,
+                borderRadius: 1,
+                backgroundColor: accentColor,
+              }}
+            />
+          )}
+
+          <Ionicons
+            name={focused ? tab.iconActive : tab.icon}
+            size={20}
+            color={focused ? accentColor : "#6b6560"}
+          />
+
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            style={{
+              fontSize: 10,
+              fontWeight: focused ? "700" : "400",
+              color: focused ? accentColor : "#6b6560",
+              marginTop: 3,
+              letterSpacing: 0,
+              textAlign: "center",
+              width: tabWidth - 12,
+            }}
+          >
+            {tab.label}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function AppLayout() {
-  const C = useColors(); // dynamic accent from theme store
+  const C = useColors();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  const PILL_MARGIN = 4;
+  const pillWidth = width - PILL_MARGIN * 2;
+  const tabWidth = pillWidth / TABS.length;
 
   const tabBarStyle = {
     position: "absolute" as const,
     backgroundColor: "#1c1c1c",
     borderTopWidth: 0,
-    borderRadius: 26,
-    marginHorizontal: 12,
-    marginBottom: Math.max(insets.bottom, 8),
-    height: 62,
+    borderRadius: 28,
+    left: PILL_MARGIN,
+    right: PILL_MARGIN,
+    marginBottom: Math.max(insets.bottom - 2, 6),
+    height: TAB_BAR_HEIGHT,
+    width: pillWidth,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 10,
     paddingBottom: 0,
     paddingTop: 0,
+    paddingHorizontal: 0,
   };
 
   return (
@@ -98,80 +172,23 @@ export default function AppLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle,
-        tabBarActiveTintColor: C.accent,
-        tabBarInactiveTintColor: "#5a5550",
+        tabBarItemStyle: {
+          padding: 0,
+          margin: 0,
+          height: TAB_BAR_HEIGHT,
+          width: tabWidth,
+        },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="grid-outline"
-              iconActive="grid"
-              label="Home"
-              focused={focused}
-              accentColor={C.accent}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="receipt-outline"
-              iconActive="receipt"
-              label="Orders"
-              focused={focused}
-              accentColor={C.accent}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="inventory"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="cube-outline"
-              iconActive="cube"
-              label="Inventory"
-              focused={focused}
-              accentColor={C.accent}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="customers"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="people-outline"
-              iconActive="people"
-              label="Customers"
-              focused={focused}
-              accentColor={C.accent}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="ellipsis-horizontal-circle-outline"
-              iconActive="ellipsis-horizontal-circle"
-              label="More"
-              focused={focused}
-              accentColor={C.accent}
-            />
-          ),
-        }}
-      />
+      {TABS.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            tabBarButton: makeTabButton(tab, C.accent, tabWidth),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

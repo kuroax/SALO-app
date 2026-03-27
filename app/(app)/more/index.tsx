@@ -322,7 +322,7 @@ export default function MoreScreen() {
   // Hardcoded swatch colors for dark/light — no map, no import needed
   const swatches: { key: AccentKey; darkColor: string; lightColor: string }[] =
     [
-      { key: "sand", darkColor: "#c8b99a", lightColor: "#8b6f47" },
+      { key: "sky", darkColor: "#38bdf8", lightColor: "#0284c7" },
       { key: "amber", darkColor: "#f59e0b", lightColor: "#d97706" },
       { key: "indigo", darkColor: "#818cf8", lightColor: "#4f46e5" },
       { key: "rose", darkColor: "#fb7185", lightColor: "#e11d48" },

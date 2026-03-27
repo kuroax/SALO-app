@@ -2,26 +2,25 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 
 // ─── Accent palette ───────────────────────────────────────────────────────────
-// Each color has a dark and light variant so the accent always
-// reads well regardless of the current color scheme.
 
-export type AccentKey = "sand" | "amber" | "indigo" | "rose" | "emerald";
+export type AccentKey = "sky" | "amber" | "indigo" | "rose" | "emerald";
 
 export type AccentOption = {
   key: AccentKey;
   label: string;
-  dark: string; // used in dark mode
-  light: string; // used in light mode
+  dark: string;
+  light: string;
 };
 
 export const ACCENT_OPTIONS: readonly AccentOption[] = [
-  { key: "sand", label: "Sand", dark: "#c8b99a", light: "#8b6f47" },
+  { key: "sky", label: "Sky", dark: "#38bdf8", light: "#0284c7" }, // replaces sand
   { key: "amber", label: "Amber", dark: "#f59e0b", light: "#d97706" },
   { key: "indigo", label: "Indigo", dark: "#818cf8", light: "#4f46e5" },
   { key: "rose", label: "Rose", dark: "#fb7185", light: "#e11d48" },
   { key: "emerald", label: "Emerald", dark: "#34d399", light: "#059669" },
 ] as const;
 
+const DEFAULT_ACCENT: AccentKey = "indigo";
 const THEME_KEY = "salo_accent_key";
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -34,13 +33,15 @@ type ThemeState = {
 };
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  accentKey: "sand",
+  accentKey: DEFAULT_ACCENT,
   isHydrated: false,
 
   hydrate: async () => {
     try {
       const stored = await SecureStore.getItemAsync(THEME_KEY);
-      const key = ACCENT_OPTIONS.find((o) => o.key === stored)?.key ?? "sand";
+      // If stored value is "sand" (old key) or invalid, fall back to default
+      const key =
+        ACCENT_OPTIONS.find((o) => o.key === stored)?.key ?? DEFAULT_ACCENT;
       set({ accentKey: key, isHydrated: true });
     } catch {
       set({ isHydrated: true });
@@ -52,18 +53,17 @@ export const useThemeStore = create<ThemeState>((set) => ({
     try {
       await SecureStore.setItemAsync(THEME_KEY, key);
     } catch {
-      // Persist failure is non-critical — accent is still applied in-memory.
+      // Non-critical — accent applied in-memory regardless.
     }
   },
 }));
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
-// Returns the hex accent color for the current scheme and accent key.
 
 export function resolveAccent(
   key: AccentKey,
   scheme: "light" | "dark",
 ): string {
-  const option = ACCENT_OPTIONS.find((o) => o.key === key) ?? ACCENT_OPTIONS[0];
+  const option = ACCENT_OPTIONS.find((o) => o.key === key) ?? ACCENT_OPTIONS[2];
   return scheme === "dark" ? option.dark : option.light;
 }
