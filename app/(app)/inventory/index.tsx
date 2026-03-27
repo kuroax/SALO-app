@@ -1,14 +1,19 @@
-import { Card } from "@/components/ui/Card";
+import type { ThemeColors } from "@/constants/Colors";
 import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_PRODUCTS } from "@/lib/graphql/queries/product.queries";
+import { useColors } from "@/lib/hooks/useColors";
 import { useQuery } from "@apollo/client/react";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
+  StatusBar,
   Text,
+  useColorScheme,
   View,
 } from "react-native";
 
@@ -40,39 +45,132 @@ type LowStockData = {
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
 
-type ProductCardProps = {
+function ProductCard({
+  product,
+  hasLowStock,
+  onPress,
+  C,
+}: {
   product: Product;
   hasLowStock: boolean;
   onPress: () => void;
-};
-
-function ProductCard({ product, hasLowStock, onPress }: ProductCardProps) {
+  C: ThemeColors;
+}) {
   const variantCount = product.variants.length;
 
   return (
-    <View className="mb-3">
-      <Card variant="white" padding="md" onPress={onPress}>
-        <View className="flex-row items-start justify-between">
-          <View className="flex-1 mr-3">
-            <Text className="text-sm font-bold text-gray-900" numberOfLines={1}>
-              {product.name}
-            </Text>
-            <Text className="mt-0.5 text-xs text-gray-500">
-              {product.brand}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        backgroundColor: C.surface,
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: hasLowStock ? C.pending + "40" : C.border,
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
+        <View style={{ flex: 1, marginRight: 12 }}>
+          <Text
+            style={{ fontSize: 15, fontWeight: "700", color: C.textPrimary }}
+            numberOfLines={1}
+          >
+            {product.name}
+          </Text>
+          <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
+            {product.brand}
+          </Text>
+        </View>
+
+        {hasLowStock && (
+          <View
+            style={{
+              backgroundColor: C.pendingBg,
+              borderRadius: 6,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderWidth: 1,
+              borderColor: C.pending + "40",
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "700", color: C.pending }}>
+              Low Stock
             </Text>
           </View>
-          {hasLowStock && (
-            <View className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-0.5">
-              <Text className="text-xs font-semibold text-amber-700">
-                Low Stock
-              </Text>
-            </View>
-          )}
-        </View>
-        <Text className="mt-3 text-xs text-gray-400">
+        )}
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginTop: 12,
+        }}
+      >
+        <Text style={{ fontSize: 12, color: C.textTertiary }}>
           {variantCount} {variantCount === 1 ? "variant" : "variants"}
         </Text>
-      </Card>
+        <Ionicons name="chevron-forward" size={14} color={C.textTertiary} />
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+function EmptyState({ C }: { C: ThemeColors }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        paddingVertical: 80,
+      }}
+    >
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 18,
+          backgroundColor: C.accentMuted,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Ionicons name="cube-outline" size={28} color={C.accent} />
+      </View>
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "700",
+          color: C.textPrimary,
+          marginBottom: 6,
+        }}
+      >
+        No products yet
+      </Text>
+      <Text
+        style={{
+          fontSize: 13,
+          color: C.textTertiary,
+          textAlign: "center",
+          lineHeight: 20,
+        }}
+      >
+        Add products to start tracking inventory.
+      </Text>
     </View>
   );
 }
@@ -81,6 +179,10 @@ function ProductCard({ product, hasLowStock, onPress }: ProductCardProps) {
 
 export default function InventoryScreen() {
   const router = useRouter();
+  const C = useColors();
+  const raw = useColorScheme();
+  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+
   const [refreshing, setRefreshing] = useState(false);
 
   const {
@@ -96,8 +198,6 @@ export default function InventoryScreen() {
     useQuery<LowStockData>(GET_LOW_STOCK);
 
   const products = productsData?.products.products ?? [];
-
-  // Build a Set of productIds that have at least one low stock variant.
   const lowStockProductIds = new Set(
     lowStockData?.lowStock.map((item) => item.productId) ?? [],
   );
@@ -110,19 +210,49 @@ export default function InventoryScreen() {
 
   if (productsLoading && !productsData) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" color="#111827" />
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={C.accent} />
       </View>
     );
   }
 
   if (productsError) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          paddingHorizontal: 32,
+        }}
+      >
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={C.alert}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: C.textPrimary,
+            marginBottom: 6,
+          }}
+        >
           Couldn't load inventory
         </Text>
-        <Text className="text-center text-sm text-gray-500">
+        <Text
+          style={{ fontSize: 13, color: C.textTertiary, textAlign: "center" }}
+        >
           {productsError.message}
         </Text>
       </View>
@@ -130,52 +260,71 @@ export default function InventoryScreen() {
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <View className="bg-white px-5 pb-4 pt-14">
-        <Text className="text-2xl font-bold text-gray-900">Inventory</Text>
-        {products.length > 0 && (
-          <Text className="mt-0.5 text-sm text-gray-500">
-            {products.length} {products.length === 1 ? "product" : "products"}
-          </Text>
-        )}
-      </View>
-
-      {/* ── List ──────────────────────────────────────────────────────────── */}
-      <FlatList
-        data={products}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 20, flexGrow: 1 }}
-        ListEmptyComponent={
-          <View className="flex-1 items-center justify-center py-20">
-            <Text className="mb-2 text-lg font-semibold text-gray-900">
-              No products yet
-            </Text>
-            <Text className="text-center text-sm text-gray-500">
-              Add products to start tracking inventory.
-            </Text>
-          </View>
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#111827"
-          />
-        }
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            hasLowStock={lowStockProductIds.has(item.id)}
-            onPress={() =>
-              router.push({
-                pathname: "/inventory/[productId]",
-                params: { productId: item.id, productName: item.name },
-              })
-            }
-          />
-        )}
+    <>
+      <StatusBar
+        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
       />
-    </View>
+      <View style={{ flex: 1, backgroundColor: C.background }}>
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View
+          style={{
+            backgroundColor: C.background,
+            paddingHorizontal: 20,
+            paddingTop: 64,
+            paddingBottom: 16,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 28,
+              fontWeight: "800",
+              color: C.textPrimary,
+              letterSpacing: -0.5,
+            }}
+          >
+            Inventory
+          </Text>
+          {products.length > 0 && (
+            <Text
+              style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
+            >
+              {products.length} {products.length === 1 ? "product" : "products"}
+            </Text>
+          )}
+        </View>
+
+        {/* ── List ────────────────────────────────────────────────────── */}
+        <FlatList
+          data={products}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: 100,
+            flexGrow: 1,
+          }}
+          ListEmptyComponent={<EmptyState C={C} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={C.accent}
+            />
+          }
+          renderItem={({ item }) => (
+            <ProductCard
+              product={item}
+              hasLowStock={lowStockProductIds.has(item.id)}
+              onPress={() =>
+                router.push({
+                  pathname: "/inventory/[productId]",
+                  params: { productId: item.id, productName: item.name },
+                })
+              }
+              C={C}
+            />
+          )}
+        />
+      </View>
+    </>
   );
 }

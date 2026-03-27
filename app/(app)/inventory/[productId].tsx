@@ -1,18 +1,23 @@
-import { Card } from "@/components/ui/Card";
+import type { ThemeColors } from "@/constants/Colors";
 import {
-    ADD_STOCK,
-    REMOVE_STOCK,
+  ADD_STOCK,
+  REMOVE_STOCK,
 } from "@/lib/graphql/mutations/inventory.mutations";
 import { GET_PRODUCT_INVENTORY } from "@/lib/graphql/queries/inventory.queries";
+import { useColors } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,61 +38,121 @@ type GetProductInventoryData = {
 
 // ─── Variant Row ──────────────────────────────────────────────────────────────
 
-type VariantRowProps = {
+function VariantRow({
+  item,
+  onAdd,
+  onRemove,
+  isLoading,
+  isLast,
+  C,
+}: {
   item: InventoryItem;
   onAdd: () => void;
   onRemove: () => void;
   isLoading: boolean;
-};
-
-function VariantRow({ item, onAdd, onRemove, isLoading }: VariantRowProps) {
+  isLast: boolean;
+  C: ThemeColors;
+}) {
   return (
     <View
-      className={[
-        "flex-row items-center justify-between py-3",
-        item.isLowStock ? "opacity-100" : "opacity-100",
-      ].join(" ")}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: C.border,
+      }}
     >
-      {/* ── Variant info ────────────────────────────────────────────────── */}
-      <View className="flex-1">
-        <Text className="text-sm font-semibold text-gray-900">
+      {/* Variant info */}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: "600", color: C.textPrimary }}>
           {item.size} · {item.color}
         </Text>
         {item.isLowStock && (
-          <Text className="mt-0.5 text-xs font-medium text-amber-600">
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "600",
+              color: C.pending,
+              marginTop: 2,
+            }}
+          >
             Low stock · threshold {item.lowStockThreshold}
           </Text>
         )}
       </View>
 
-      {/* ── Stock controls ──────────────────────────────────────────────── */}
-      <View className="flex-row items-center gap-3">
-        <Pressable
+      {/* Stock controls */}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {/* Remove button */}
+        <TouchableOpacity
           onPress={onRemove}
           disabled={isLoading || item.quantity === 0}
-          className="h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white"
-          style={{ opacity: isLoading || item.quantity === 0 ? 0.4 : 1 }}
+          activeOpacity={0.7}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            borderWidth: 1,
+            borderColor: C.border,
+            backgroundColor: C.surface,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: isLoading || item.quantity === 0 ? 0.35 : 1,
+          }}
         >
-          <Text className="text-base font-bold text-gray-700">−</Text>
-        </Pressable>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: C.textPrimary,
+              lineHeight: 22,
+            }}
+          >
+            −
+          </Text>
+        </TouchableOpacity>
 
+        {/* Quantity */}
         <Text
-          className={[
-            "w-8 text-center text-base font-bold",
-            item.isLowStock ? "text-amber-600" : "text-gray-900",
-          ].join(" ")}
+          style={{
+            width: 40,
+            textAlign: "center",
+            fontSize: 16,
+            fontWeight: "700",
+            color: item.isLowStock ? C.pending : C.textPrimary,
+          }}
         >
           {item.quantity}
         </Text>
 
-        <Pressable
+        {/* Add button */}
+        <TouchableOpacity
           onPress={onAdd}
           disabled={isLoading}
-          className="h-8 w-8 items-center justify-center rounded-full border border-gray-900 bg-gray-900"
-          style={{ opacity: isLoading ? 0.4 : 1 }}
+          activeOpacity={0.7}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: C.accent,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: isLoading ? 0.35 : 1,
+          }}
         >
-          <Text className="text-base font-bold text-white">+</Text>
-        </Pressable>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: "#fff",
+              lineHeight: 22,
+            }}
+          >
+            +
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -101,6 +166,9 @@ export default function ProductInventoryScreen() {
     productName: string;
   }>();
   const router = useRouter();
+  const C = useColors();
+  const raw = useColorScheme();
+  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const validProductId =
     typeof productId === "string" && productId.length > 0 ? productId : null;
@@ -166,8 +234,15 @@ export default function ProductInventoryScreen() {
   // ── Invalid id ─────────────────────────────────────────────────────────────
   if (!validProductId) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="text-lg font-semibold text-gray-900">
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+        }}
+      >
+        <Text style={{ fontSize: 16, fontWeight: "700", color: C.textPrimary }}>
           Invalid product
         </Text>
       </View>
@@ -177,8 +252,15 @@ export default function ProductInventoryScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" color="#111827" />
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={C.accent} />
       </View>
     );
   }
@@ -186,11 +268,34 @@ export default function ProductInventoryScreen() {
   // ── Error ──────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-8">
-        <Text className="mb-2 text-lg font-semibold text-gray-900">
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          paddingHorizontal: 32,
+        }}
+      >
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={C.alert}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: C.textPrimary,
+            marginBottom: 6,
+          }}
+        >
           Couldn't load inventory
         </Text>
-        <Text className="text-center text-sm text-gray-500">
+        <Text
+          style={{ fontSize: 13, color: C.textTertiary, textAlign: "center" }}
+        >
           {error.message}
         </Text>
       </View>
@@ -198,58 +303,151 @@ export default function ProductInventoryScreen() {
   }
 
   const items = data?.productInventory ?? [];
+  const lowCount = items.filter((i) => i.isLowStock).length;
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <View className="bg-white px-5 pb-4 pt-14">
-        <Pressable
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/inventory")
-          }
-          className="mb-3"
+    <>
+      <StatusBar
+        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
+      />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: C.background }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <View
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: 64,
+            paddingBottom: 20,
+          }}
         >
-          <Text className="text-sm font-medium text-gray-500">← Inventory</Text>
-        </Pressable>
-        <Text className="text-2xl font-bold text-gray-900" numberOfLines={1}>
-          {productName ?? "Product"}
-        </Text>
-        <Text className="mt-0.5 text-sm text-gray-500">
-          {items.length} {items.length === 1 ? "variant" : "variants"}
-        </Text>
-      </View>
+          <Pressable
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace("/inventory")
+            }
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              alignSelf: "flex-start",
+              marginBottom: 16,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Ionicons name="arrow-back" size={16} color={C.accent} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: C.accent,
+                marginLeft: 4,
+              }}
+            >
+              Inventory
+            </Text>
+          </Pressable>
 
-      <View className="px-5 pt-5">
-        {items.length === 0 ? (
-          <View className="items-center py-20">
-            <Text className="text-lg font-semibold text-gray-900">
-              No variants tracked
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: C.textPrimary,
+              letterSpacing: -0.5,
+            }}
+            numberOfLines={1}
+          >
+            {productName ?? "Product"}
+          </Text>
+
+          <View
+            style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}
+          >
+            <Text style={{ fontSize: 13, color: C.textSecondary }}>
+              {items.length} {items.length === 1 ? "variant" : "variants"}
             </Text>
-            <Text className="mt-1 text-center text-sm text-gray-500">
-              Use the API or Apollo Sandbox to add stock for this product.
-            </Text>
+            {lowCount > 0 && (
+              <View
+                style={{
+                  backgroundColor: C.pendingBg,
+                  borderRadius: 6,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  marginLeft: 10,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 11, fontWeight: "700", color: C.pending }}
+                >
+                  {lowCount} low stock
+                </Text>
+              </View>
+            )}
           </View>
-        ) : (
-          <Card variant="white" padding="md">
-            {items.map((item, index) => (
-              <View key={`${item.size}-${item.color}`}>
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          {items.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 60 }}>
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  backgroundColor: C.accentMuted,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <Ionicons name="cube-outline" size={24} color={C.accent} />
+              </View>
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: C.textPrimary,
+                  marginBottom: 6,
+                }}
+              >
+                No variants tracked
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: C.textTertiary,
+                  textAlign: "center",
+                  lineHeight: 20,
+                }}
+              >
+                Add stock via the API or Apollo Sandbox to begin tracking this
+                product.
+              </Text>
+            </View>
+          ) : (
+            <View
+              style={{
+                backgroundColor: C.surface,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: C.border,
+                overflow: "hidden",
+              }}
+            >
+              {items.map((item, index) => (
                 <VariantRow
+                  key={`${item.size}-${item.color}`}
                   item={item}
                   onAdd={() => handleAdd(item)}
                   onRemove={() => handleRemove(item)}
                   isLoading={isLoading}
+                  isLast={index === items.length - 1}
+                  C={C}
                 />
-                {index < items.length - 1 && (
-                  <View className="border-b border-gray-100" />
-                )}
-              </View>
-            ))}
-          </Card>
-        )}
-      </View>
-    </ScrollView>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </>
   );
 }
