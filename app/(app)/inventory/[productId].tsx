@@ -11,13 +11,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
   useColorScheme,
-  View,
+  View
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -322,30 +321,32 @@ export default function ProductInventoryScreen() {
             paddingBottom: 20,
           }}
         >
-          <Pressable
+          <TouchableOpacity
             onPress={() =>
               router.canGoBack() ? router.back() : router.replace("/inventory")
             }
-            style={({ pressed }) => ({
+            activeOpacity={0.6}
+            style={{
+              alignSelf: "flex-start",
+              marginBottom: 32,
               flexDirection: "row",
               alignItems: "center",
-              alignSelf: "flex-start",
-              marginBottom: 16,
-              opacity: pressed ? 0.6 : 1,
-            })}
+            }}
           >
-            <Ionicons name="arrow-back" size={16} color={C.accent} />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: C.accent,
-                marginLeft: 4,
-              }}
-            >
-              Inventory
-            </Text>
-          </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="arrow-back" size={16} color={C.accent} />
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.accent,
+                  marginLeft: 4,
+                }}
+              >
+                Inventory
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           <Text
             style={{

@@ -52,6 +52,15 @@ const CHANNEL_LABELS: Record<ContactChannel, string> = {
   both: "Both",
 };
 
+const CHANNEL_ICONS: Record<
+  ContactChannel,
+  React.ComponentProps<typeof Ionicons>["name"]
+> = {
+  whatsapp: "logo-whatsapp",
+  instagram: "logo-instagram",
+  both: "globe-outline",
+};
+
 const TAG_COLORS: Record<CustomerTag, string> = {
   vip: "#f59e0b",
   wholesale: "#6366f1",
@@ -66,103 +75,127 @@ const TAG_LABELS: Record<CustomerTag, string> = {
   regular: "Regular",
 };
 
-// ─── Inline badge ─────────────────────────────────────────────────────────────
+// ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function Pill({ label, color }: { label: string; color: string }) {
+function Avatar({ name, color }: { name: string; color: string }) {
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
     <View
       style={{
-        backgroundColor: color + "18",
-        borderRadius: 6,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: color + "25",
+        borderWidth: 1,
+        borderColor: color + "50",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <Text style={{ fontSize: 11, fontWeight: "700", color }}>{label}</Text>
+      <Text style={{ fontSize: 16, fontWeight: "700", color }}>
+        {initials || "?"}
+      </Text>
     </View>
   );
 }
 
-// ─── Customer Card ────────────────────────────────────────────────────────────
+// ─── Customer Row ─────────────────────────────────────────────────────────────
 
-function CustomerCard({
+function CustomerRow({
   customer,
   onPress,
+  isLast,
   C,
 }: {
   customer: Customer;
   onPress: () => void;
+  isLast: boolean;
   C: ThemeColors;
 }) {
+  const channelColor = CHANNEL_COLORS[customer.contactChannel];
   const contact =
     customer.phone ??
     (customer.instagramHandle ? `@${customer.instagramHandle}` : null);
-  const channelColor = CHANNEL_COLORS[customer.contactChannel];
+  const channelIcon = CHANNEL_ICONS[customer.contactChannel];
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: C.surface,
-        borderRadius: 14,
-        padding: 16,
-        marginBottom: 10,
-        borderWidth: 1,
-        borderColor: C.border,
-        opacity: pressed ? 0.8 : 1,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: C.border,
+        backgroundColor: pressed ? C.surface : "transparent",
       })}
     >
-      {/* Top row: name + channel badge */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 6,
-        }}
-      >
+      {/* Avatar */}
+      <Avatar name={customer.name} color={channelColor} />
+
+      {/* Info */}
+      <View style={{ flex: 1, marginLeft: 14 }}>
         <Text
-          style={{
-            flex: 1,
-            fontSize: 15,
-            fontWeight: "700",
-            color: C.textPrimary,
-            marginRight: 12,
-          }}
+          style={{ fontSize: 15, fontWeight: "700", color: C.textPrimary }}
           numberOfLines={1}
         >
           {customer.name}
         </Text>
-        <Pill
-          label={CHANNEL_LABELS[customer.contactChannel]}
-          color={channelColor}
-        />
+
+        {/* Contact line with channel icon */}
+        {contact && (
+          <View
+            style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}
+          >
+            <Ionicons
+              name={channelIcon}
+              size={12}
+              color={C.textTertiary}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={{ fontSize: 12, color: C.textSecondary }}
+              numberOfLines={1}
+            >
+              {contact}
+            </Text>
+          </View>
+        )}
+
+        {/* Tags */}
+        {customer.tags.length > 0 && (
+          <View style={{ flexDirection: "row", marginTop: 5 }}>
+            {customer.tags.map((tag) => (
+              <View
+                key={tag}
+                style={{
+                  backgroundColor: TAG_COLORS[tag] + "20",
+                  borderRadius: 4,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  marginRight: 5,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: TAG_COLORS[tag],
+                  }}
+                >
+                  {TAG_LABELS[tag]}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
-
-      {/* Contact handle */}
-      {contact && (
-        <Text
-          style={{
-            fontSize: 12,
-            color: C.textSecondary,
-            marginBottom: customer.tags.length > 0 ? 10 : 0,
-          }}
-          numberOfLines={1}
-        >
-          {contact}
-        </Text>
-      )}
-
-      {/* Tags */}
-      {customer.tags.length > 0 && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-          {customer.tags.map((tag) => (
-            <View key={tag} style={{ marginRight: 6, marginBottom: 4 }}>
-              <Pill label={TAG_LABELS[tag]} color={TAG_COLORS[tag]} />
-            </View>
-          ))}
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -217,9 +250,34 @@ function EmptyState({ C }: { C: ThemeColors }) {
   );
 }
 
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionDivider({ letter, C }: { letter: string; C: ThemeColors }) {
+  return (
+    <View
+      style={{
+        paddingHorizontal: 20,
+        paddingVertical: 6,
+        backgroundColor: C.background,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: "700",
+          color: C.accent,
+          letterSpacing: 1,
+        }}
+      >
+        {letter}
+      </Text>
+    </View>
+  );
+}
+
 // ─── Customers Screen ─────────────────────────────────────────────────────────
 
-const LIMIT = 30;
+const LIMIT = 100;
 
 export default function CustomersScreen() {
   const router = useRouter();
@@ -238,6 +296,38 @@ export default function CustomersScreen() {
   );
 
   const customers = data?.customers.customers ?? [];
+
+  // Group alphabetically
+  const grouped = customers
+    .reduce<{ letter: string; items: Customer[] }[]>((acc, customer) => {
+      const letter = customer.name[0]?.toUpperCase() ?? "#";
+      const existing = acc.find((g) => g.letter === letter);
+      if (existing) {
+        existing.items.push(customer);
+      } else {
+        acc.push({ letter, items: [customer] });
+      }
+      return acc;
+    }, [])
+    .sort((a, b) => a.letter.localeCompare(b.letter));
+
+  type ListItem =
+    | { type: "header"; letter: string; key: string }
+    | { type: "customer"; customer: Customer; isLast: boolean; key: string };
+
+  const listData: ListItem[] = grouped.flatMap((group) => [
+    {
+      type: "header" as const,
+      letter: group.letter,
+      key: `header-${group.letter}`,
+    },
+    ...group.items.map((customer, i) => ({
+      type: "customer" as const,
+      customer,
+      isLast: i === group.items.length - 1,
+      key: customer.id,
+    })),
+  ]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -305,7 +395,6 @@ export default function CustomersScreen() {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
           style={{
-            backgroundColor: C.background,
             paddingHorizontal: 20,
             paddingTop: 64,
             paddingBottom: 16,
@@ -323,22 +412,25 @@ export default function CustomersScreen() {
           </Text>
           {customers.length > 0 && (
             <Text
-              style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
+              style={{
+                fontSize: 13,
+                color: C.accent,
+                marginTop: 2,
+                fontWeight: "600",
+              }}
             >
               {data?.customers.total} total
             </Text>
           )}
         </View>
 
+        <View style={{ height: 1, backgroundColor: C.border }} />
+
         {/* ── List ────────────────────────────────────────────────────── */}
         <FlatList
-          data={customers}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingBottom: 100,
-            flexGrow: 1,
-          }}
+          data={listData}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
           ListEmptyComponent={<EmptyState C={C} />}
           refreshControl={
             <RefreshControl
@@ -347,18 +439,24 @@ export default function CustomersScreen() {
               tintColor={C.accent}
             />
           }
-          renderItem={({ item }) => (
-            <CustomerCard
-              customer={item}
-              onPress={() =>
-                router.push({
-                  pathname: "/customers/[id]",
-                  params: { id: item.id },
-                })
-              }
-              C={C}
-            />
-          )}
+          renderItem={({ item }) => {
+            if (item.type === "header") {
+              return <SectionDivider letter={item.letter} C={C} />;
+            }
+            return (
+              <CustomerRow
+                customer={item.customer}
+                onPress={() =>
+                  router.push({
+                    pathname: "/customers/[id]",
+                    params: { id: item.customer.id },
+                  })
+                }
+                isLast={item.isLast}
+                C={C}
+              />
+            );
+          }}
         />
       </View>
     </>

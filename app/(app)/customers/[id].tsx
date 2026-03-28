@@ -10,6 +10,7 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
@@ -205,7 +206,7 @@ export default function CustomerDetailScreen() {
             fontSize: 16,
             fontWeight: "700",
             color: C.textPrimary,
-            marginBottom: 16,
+            marginBottom: 24,
           }}
         >
           Invalid customer
@@ -298,30 +299,32 @@ export default function CustomerDetailScreen() {
         <View
           style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
         >
-          <Pressable
+          <TouchableOpacity
             onPress={() =>
               router.canGoBack() ? router.back() : router.replace("/customers")
             }
-            style={({ pressed }) => ({
+            activeOpacity={0.6}
+            style={{
+              alignSelf: "flex-start",
+              marginBottom: 32,
               flexDirection: "row",
               alignItems: "center",
-              alignSelf: "flex-start",
-              marginBottom: 16,
-              opacity: pressed ? 0.6 : 1,
-            })}
+            }}
           >
-            <Ionicons name="arrow-back" size={16} color={C.accent} />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: C.accent,
-                marginLeft: 4,
-              }}
-            >
-              Customers
-            </Text>
-          </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="arrow-back" size={16} color={C.accent} />
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.accent,
+                  marginLeft: 4,
+                }}
+              >
+                Customers
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           <View
             style={{

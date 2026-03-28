@@ -1,5 +1,5 @@
 import type { ThemeColors } from "@/constants/Colors";
-import { useColors } from "@/lib/hooks/useColors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useThemeStore, type AccentKey } from "@/lib/store/theme.store";
 import { gql } from "@apollo/client";
@@ -15,7 +15,6 @@ import {
   Switch,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -270,10 +269,10 @@ export default function MoreScreen() {
   const logout = useAuthStore((s) => s.logout);
   const accentKey = useThemeStore((s) => s.accentKey);
   const setAccent = useThemeStore((s) => s.setAccent);
+  const setColorScheme = useThemeStore((s) => s.setColorScheme);
 
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
   const C = useColors();
+  const scheme = useScheme();
 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -319,7 +318,6 @@ export default function MoreScreen() {
 
   const members = teamData?.listUsers ?? [];
 
-  // Hardcoded swatch colors for dark/light — no map, no import needed
   const swatches: { key: AccentKey; darkColor: string; lightColor: string }[] =
     [
       { key: "sky", darkColor: "#38bdf8", lightColor: "#0284c7" },
@@ -379,6 +377,7 @@ export default function MoreScreen() {
         <View style={{ paddingHorizontal: 20 }}>
           {/* Appearance */}
           <Section title="Appearance" C={C}>
+            {/* Dark mode toggle */}
             <Row
               icon="moon-outline"
               label="Dark Mode"
@@ -386,14 +385,16 @@ export default function MoreScreen() {
               right={
                 <Switch
                   value={scheme === "dark"}
-                  disabled
+                  onValueChange={(val) =>
+                    setColorScheme(val ? "dark" : "light")
+                  }
                   trackColor={{ false: C.border, true: C.accent }}
-                  thumbColor={C.textPrimary}
+                  thumbColor={C.surface}
                 />
               }
             />
 
-            {/* Color picker — hardcoded swatches, no map */}
+            {/* Accent color picker */}
             <View
               style={{
                 borderTopWidth: 1,
@@ -456,7 +457,7 @@ export default function MoreScreen() {
                   value={notificationsEnabled}
                   onValueChange={setNotificationsEnabled}
                   trackColor={{ false: C.border, true: C.accent }}
-                  thumbColor={C.textPrimary}
+                  thumbColor={C.surface}
                 />
               }
             />

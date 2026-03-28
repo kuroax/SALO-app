@@ -1,7 +1,7 @@
 import type { ThemeColors } from "@/constants/Colors";
 import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_PRODUCTS } from "@/lib/graphql/queries/product.queries";
-import { useColors } from "@/lib/hooks/useColors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -9,10 +9,10 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StatusBar,
   Text,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
@@ -59,17 +59,17 @@ function ProductCard({
   const variantCount = product.variants.length;
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.8}
+      style={{
         backgroundColor: C.surface,
         borderRadius: 14,
         padding: 16,
         marginBottom: 10,
         borderWidth: 1,
         borderColor: hasLowStock ? C.pending + "40" : C.border,
-        opacity: pressed ? 0.8 : 1,
-      })}
+      }}
     >
       <View
         style={{
@@ -121,7 +121,7 @@ function ProductCard({
         </Text>
         <Ionicons name="chevron-forward" size={14} color={C.textTertiary} />
       </View>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -180,8 +180,9 @@ function EmptyState({ C }: { C: ThemeColors }) {
 export default function InventoryScreen() {
   const router = useRouter();
   const C = useColors();
+  const scheme = useScheme();
   const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const _scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -299,7 +300,7 @@ export default function InventoryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{
             paddingHorizontal: 20,
-            paddingBottom: 100,
+            paddingBottom: 120,
             flexGrow: 1,
           }}
           ListEmptyComponent={<EmptyState C={C} />}
@@ -324,6 +325,30 @@ export default function InventoryScreen() {
             />
           )}
         />
+
+        {/* ── FAB ─────────────────────────────────────────────────────── */}
+        <TouchableOpacity
+          onPress={() => router.push("/inventory/add-product")}
+          activeOpacity={0.85}
+          style={{
+            position: "absolute",
+            bottom: 100,
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: C.accent,
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 6,
+          }}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
       </View>
     </>
   );

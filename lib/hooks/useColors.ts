@@ -5,27 +5,41 @@ import { useColorScheme } from "react-native";
 /**
  * useColors()
  *
- * Returns the full theme token set for the current color scheme,
+ * Returns the full theme token set for the effective color scheme,
  * with the accent color overridden by the user's chosen palette.
  *
- * Usage — replace direct Colors[scheme] access:
- *   const C = useColors();
+ * The effective scheme is:
+ *   1. User's explicit override stored in theme store (dark / light)
+ *   2. System setting as fallback
  *
- * All screens that use C.accent will automatically reflect
- * the user's chosen accent without any further changes.
+ * Usage:
+ *   const C = useColors();
  */
 export function useColors(): ThemeColors {
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const systemRaw = useColorScheme();
+  const system: "light" | "dark" = systemRaw === "light" ? "light" : "dark";
+
+  const storedScheme = useThemeStore((s) => s.colorScheme);
+  const scheme: "light" | "dark" = storedScheme ?? system;
+
   const accentKey = useThemeStore((s) => s.accentKey);
   const accent = resolveAccent(accentKey, scheme);
 
-  // Spread the static theme tokens and override accent with the dynamic value.
-  // accentMuted is derived as a 15% opacity tint of the accent.
   return {
     ...Colors[scheme],
     accent,
-    // accentMuted: keep the static value — it reads as a background tint.
-    // If you want it dynamic too, compute: accent + "25" (hex alpha).
   } as ThemeColors;
+}
+
+/**
+ * useScheme()
+ *
+ * Returns the effective color scheme (stored override or system).
+ * Use this in screens that need to set StatusBar style.
+ */
+export function useScheme(): "light" | "dark" {
+  const systemRaw = useColorScheme();
+  const system: "light" | "dark" = systemRaw === "light" ? "light" : "dark";
+  const storedScheme = useThemeStore((s) => s.colorScheme);
+  return storedScheme ?? system;
 }

@@ -1,6 +1,7 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import { type ThemeColors } from "@/constants/Colors";
 import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,8 +13,8 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TouchableOpacity,
   View,
-  useColorScheme,
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,17 +92,17 @@ function StatCard({
   C,
 }: StatCardProps) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.85}
+      style={{
         flex: 1,
         backgroundColor: bg,
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
         borderColor: accent + "30",
-        opacity: pressed ? 0.85 : 1,
-      })}
+      }}
     >
       <View
         style={{
@@ -148,7 +149,7 @@ function StatCard({
       >
         {subtitle}
       </Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -203,11 +204,12 @@ function OrderRow({ order, C }: { order: Order; C: ThemeColors }) {
   const statusColor = getStatusColor(order.status, C);
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={() =>
         router.push({ pathname: "/orders/[id]", params: { id: order.id } })
       }
-      style={({ pressed }) => ({
+      activeOpacity={0.8}
+      style={{
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: C.surface,
@@ -216,8 +218,7 @@ function OrderRow({ order, C }: { order: Order; C: ThemeColors }) {
         marginBottom: 8,
         borderWidth: 1,
         borderColor: C.border,
-        opacity: pressed ? 0.8 : 1,
-      })}
+      }}
     >
       {/* Status dot */}
       <View
@@ -260,7 +261,7 @@ function OrderRow({ order, C }: { order: Order; C: ThemeColors }) {
         color={C.textTertiary}
         style={{ marginLeft: 8 }}
       />
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -278,9 +279,10 @@ function QuickAction({
   C: ThemeColors;
 }) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.8}
+      style={{
         flex: 1,
         alignItems: "center",
         backgroundColor: C.surface,
@@ -288,9 +290,7 @@ function QuickAction({
         paddingVertical: 16,
         borderWidth: 1,
         borderColor: C.border,
-        opacity: pressed ? 0.8 : 1,
-        gap: 8,
-      })}
+      }}
     >
       <View
         style={{
@@ -300,6 +300,7 @@ function QuickAction({
           backgroundColor: C.accentMuted,
           alignItems: "center",
           justifyContent: "center",
+          marginBottom: 8,
         }}
       >
         <Ionicons name={icon} size={20} color={C.accent} />
@@ -307,7 +308,7 @@ function QuickAction({
       <Text style={{ fontSize: 12, fontWeight: "600", color: C.textSecondary }}>
         {label}
       </Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -317,11 +318,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
 
-  // FIX: useColorScheme() can return 'unspecified' on some Expo versions.
-  // Narrow explicitly to 'light' | 'dark' before indexing Colors.
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
+  const scheme = useScheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -447,7 +445,7 @@ export default function DashboardScreen() {
           <SectionHeader title="Overview" C={C} />
 
           {/* Row 1: Pending + Today */}
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", marginBottom: 10 }}>
             <StatCard
               label="Pending"
               value={pendingCount}
@@ -459,6 +457,7 @@ export default function DashboardScreen() {
               onPress={() => router.navigate("/orders")}
               C={C}
             />
+            <View style={{ width: 10 }} />
             <StatCard
               label="Today"
               value={todayCount}
@@ -497,19 +496,21 @@ export default function DashboardScreen() {
 
           {/* ── Quick Actions ──────────────────────────────────────────── */}
           <SectionHeader title="Quick Actions" C={C} />
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 28 }}>
+          <View style={{ flexDirection: "row", marginBottom: 28 }}>
             <QuickAction
               label="Orders"
               icon="receipt-outline"
               onPress={() => router.navigate("/orders")}
               C={C}
             />
+            <View style={{ width: 10 }} />
             <QuickAction
               label="Inventory"
               icon="cube-outline"
               onPress={() => router.navigate("/inventory")}
               C={C}
             />
+            <View style={{ width: 10 }} />
             <QuickAction
               label="Customers"
               icon="people-outline"

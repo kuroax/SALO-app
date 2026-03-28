@@ -1,10 +1,11 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import { type ThemeColors } from "@/constants/Colors";
 import {
   CANCEL_ORDER,
   UPDATE_ORDER_STATUS,
   UPDATE_PAYMENT_STATUS,
 } from "@/lib/graphql/mutations/order.mutations";
 import { GET_ORDER } from "@/lib/graphql/queries/order.queries";
+import { useColors } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,6 +16,7 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
@@ -314,7 +316,7 @@ export default function OrderDetailScreen() {
 
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
 
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
 
@@ -525,24 +527,30 @@ export default function OrderDetailScreen() {
             paddingBottom: 20,
           }}
         >
-          <Pressable
+          <TouchableOpacity
             onPress={() =>
               router.canGoBack() ? router.back() : router.replace("/orders")
             }
-            style={({ pressed }) => ({
+            activeOpacity={0.6}
+            style={{
+              alignSelf: "flex-start",
+              marginBottom: 32,
               flexDirection: "row",
               alignItems: "center",
-              gap: 4,
-              marginBottom: 16,
-              opacity: pressed ? 0.6 : 1,
-              alignSelf: "flex-start",
-            })}
+            }}
           >
             <Ionicons name="arrow-back" size={16} color={C.accent} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: C.accent }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: C.accent,
+                marginLeft: 4,
+              }}
+            >
               Orders
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
           <View
             style={{

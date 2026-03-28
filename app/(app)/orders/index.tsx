@@ -1,5 +1,6 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import { type ThemeColors } from "@/constants/Colors";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
+import { useColors } from "@/lib/hooks/useColors";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -7,13 +8,13 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
   Text,
+  TouchableOpacity,
   useColorScheme,
-  View,
+  View
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -98,17 +99,18 @@ function FilterChip({
   C: ThemeColors;
 }) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.7}
+      style={{
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 20,
         backgroundColor: active ? color + "20" : C.surface,
         borderWidth: 1,
         borderColor: active ? color : C.border,
-        opacity: pressed ? 0.7 : 1,
-      })}
+        marginRight: 8,
+      }}
     >
       <Text
         style={{
@@ -120,7 +122,7 @@ function FilterChip({
       >
         {label}
       </Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -133,19 +135,19 @@ function OrderCard({ order, C }: { order: Order; C: ThemeColors }) {
   const itemCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={() =>
         router.push({ pathname: "/orders/[id]", params: { id: order.id } })
       }
-      style={({ pressed }) => ({
+      activeOpacity={0.8}
+      style={{
         backgroundColor: C.surface,
         borderRadius: 14,
         padding: 16,
         marginBottom: 10,
         borderWidth: 1,
         borderColor: C.border,
-        opacity: pressed ? 0.8 : 1,
-      })}
+      }}
     >
       {/* Top row */}
       <View
@@ -165,13 +167,14 @@ function OrderCard({ order, C }: { order: Order; C: ThemeColors }) {
       </View>
 
       {/* Badges row */}
-      <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+      <View style={{ flexDirection: "row", marginBottom: 10 }}>
         <View
           style={{
             backgroundColor: statusColor + "18",
             borderRadius: 6,
             paddingHorizontal: 8,
             paddingVertical: 3,
+            marginRight: 6,
           }}
         >
           <Text
@@ -217,17 +220,21 @@ function OrderCard({ order, C }: { order: Order; C: ThemeColors }) {
         <Text style={{ fontSize: 12, color: C.textTertiary }}>
           {order.customerId ? "Customer assigned" : "No customer"}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Text style={{ fontSize: 12, color: C.textTertiary }}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text
+            style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}
+          >
             {itemCount} unit{itemCount !== 1 ? "s" : ""}
           </Text>
-          <Text style={{ fontSize: 12, color: C.textTertiary }}>
+          <Text
+            style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}
+          >
             {formatDate(order.createdAt)}
           </Text>
           <Ionicons name="chevron-forward" size={13} color={C.textTertiary} />
         </View>
       </View>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -326,7 +333,7 @@ const LIMIT = 20;
 export default function OrdersScreen() {
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");
@@ -411,7 +418,6 @@ export default function OrdersScreen() {
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingVertical: 10,
-            gap: 8,
           }}
         >
           {FILTERS.map((f) => (

@@ -1,20 +1,20 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import { type ThemeColors } from "@/constants/Colors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    Text,
-    TextInput,
-    useColorScheme,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
@@ -117,10 +117,8 @@ function Field({
 
 export default function AddMemberScreen() {
   const router = useRouter();
-
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
+  const scheme = useScheme();
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -135,9 +133,7 @@ export default function AddMemberScreen() {
         [{ text: "Done", onPress: () => router.back() }],
       );
     },
-    onError: (err) => {
-      Alert.alert("Error", err.message);
-    },
+    onError: (err) => Alert.alert("Error", err.message),
   });
 
   const handleSubmit = () => {
@@ -149,7 +145,6 @@ export default function AddMemberScreen() {
       Alert.alert("Weak password", "Password must be at least 8 characters.");
       return;
     }
-
     register({
       variables: {
         input: {
@@ -172,54 +167,51 @@ export default function AddMemberScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* ── Header ────────────────────────────────────────────────── */}
+          {/* ── Header ──────────────────────────────────────────────── */}
           <View
-            style={{
-              paddingHorizontal: 20,
-              paddingTop: 64,
-              paddingBottom: 20,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-            }}
+            style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
           >
-            <Pressable
+            <TouchableOpacity
               onPress={() => router.back()}
-              style={({ pressed }) => ({
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                backgroundColor: C.surface,
-                borderWidth: 1,
-                borderColor: C.border,
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                opacity: pressed ? 0.6 : 1,
-              })}
+                alignSelf: "flex-start",
+                marginBottom: 20,
+              }}
             >
-              <Ionicons name="arrow-back" size={18} color={C.textPrimary} />
-            </Pressable>
-            <View>
+              <Ionicons name="arrow-back" size={16} color={C.accent} />
               <Text
                 style={{
-                  fontSize: 22,
-                  fontWeight: "800",
-                  color: C.textPrimary,
-                  letterSpacing: -0.5,
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.accent,
+                  marginLeft: 4,
                 }}
               >
-                Add Team Member
+                More
               </Text>
-              <Text
-                style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}
-              >
-                They'll use these credentials to log in
-              </Text>
-            </View>
+            </TouchableOpacity>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                color: C.textPrimary,
+                letterSpacing: -0.5,
+              }}
+            >
+              Add Team Member
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}
+            >
+              They'll use these credentials to log in
+            </Text>
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
-            {/* ── Fields ──────────────────────────────────────────────── */}
+            {/* ── Fields ────────────────────────────────────────────── */}
             <Field
               label="USERNAME"
               value={username}
@@ -256,14 +248,15 @@ export default function AddMemberScreen() {
               ROLE
             </Text>
 
-            <View style={{ gap: 8, marginBottom: 28 }}>
-              {ROLES.map((r) => {
+            <View style={{ marginBottom: 28 }}>
+              {ROLES.map((r, index) => {
                 const selected = role === r.value;
                 return (
-                  <Pressable
+                  <TouchableOpacity
                     key={r.value}
                     onPress={() => setRole(r.value)}
-                    style={({ pressed }) => ({
+                    activeOpacity={0.8}
+                    style={{
                       flexDirection: "row",
                       alignItems: "center",
                       backgroundColor: selected ? C.accentMuted : C.surface,
@@ -271,9 +264,8 @@ export default function AddMemberScreen() {
                       padding: 14,
                       borderWidth: 1,
                       borderColor: selected ? C.accent : C.border,
-                      opacity: pressed ? 0.8 : 1,
-                      gap: 12,
-                    })}
+                      marginBottom: index < ROLES.length - 1 ? 8 : 0,
+                    }}
                   >
                     <View
                       style={{
@@ -285,6 +277,7 @@ export default function AddMemberScreen() {
                         backgroundColor: selected ? C.accent : "transparent",
                         alignItems: "center",
                         justifyContent: "center",
+                        marginRight: 12,
                       }}
                     >
                       {selected && (
@@ -315,33 +308,30 @@ export default function AddMemberScreen() {
                         {r.description}
                       </Text>
                     </View>
-                  </Pressable>
+                  </TouchableOpacity>
                 );
               })}
             </View>
 
             {/* ── Submit ────────────────────────────────────────────── */}
-            <Pressable
+            <TouchableOpacity
               onPress={handleSubmit}
               disabled={loading}
-              style={({ pressed }) => ({
+              activeOpacity={0.7}
+              style={{
                 backgroundColor: C.accent,
                 borderRadius: 14,
                 paddingVertical: 16,
                 alignItems: "center",
-                opacity: pressed || loading ? 0.7 : 1,
-              })}
+                opacity: loading ? 0.7 : 1,
+              }}
             >
               <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: "700",
-                  color: "#0c0c0c",
-                }}
+                style={{ fontSize: 15, fontWeight: "700", color: "#0c0c0c" }}
               >
                 {loading ? "Creating…" : "Create Member"}
               </Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
