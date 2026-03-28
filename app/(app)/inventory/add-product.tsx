@@ -8,17 +8,17 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // ─── Cloudinary ───────────────────────────────────────────────────────────────
@@ -64,7 +64,9 @@ const GENDERS = [
 ] as const;
 type Gender = "men" | "women";
 
-type Variant = { size: Size; color: string; quantity: number };
+const DEFAULT_COLOR = "default";
+
+type SizeStock = { size: Size; quantity: number };
 
 // ─── Field ────────────────────────────────────────────────────────────────────
 
@@ -139,10 +141,7 @@ export default function AddProductScreen() {
   const [gender, setGender] = useState<Gender>("men");
   const [categoryGroup, setCategoryGroup] = useState("");
   const [subcategory, setSubcategory] = useState("");
-  const [variants, setVariants] = useState<Variant[]>([]);
-  const [newSize, setNewSize] = useState<Size>("M");
-  const [newColor, setNewColor] = useState("");
-  const [newQty, setNewQty] = useState("0");
+  const [sizeStocks, setSizeStocks] = useState<SizeStock[]>([]);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -171,31 +170,26 @@ export default function AddProductScreen() {
     }
   };
 
-  // ── Variant management ────────────────────────────────────────────────────
+  // ── Size toggle ───────────────────────────────────────────────────────────
 
-  const addVariant = () => {
-    const color = newColor.trim().toLowerCase();
-    if (!color) {
-      Alert.alert("Required", "Enter a color.");
-      return;
+  const toggleSize = (size: Size) => {
+    const exists = sizeStocks.find((s) => s.size === size);
+    if (exists) {
+      setSizeStocks(sizeStocks.filter((s) => s.size !== size));
+    } else {
+      setSizeStocks([...sizeStocks, { size, quantity: 0 }]);
     }
-    if (variants.some((v) => v.size === newSize && v.color === color)) {
-      Alert.alert("Duplicate", `${newSize} · ${color} already added.`);
-      return;
-    }
-    const qty = Math.max(0, parseInt(newQty, 10) || 0);
-    setVariants([...variants, { size: newSize, color, quantity: qty }]);
-    setNewColor("");
-    setNewQty("0");
   };
 
-  const removeVariant = (index: number) =>
-    setVariants(variants.filter((_, i) => i !== index));
+  const isSizeSelected = (size: Size) =>
+    sizeStocks.some((s) => s.size === size);
 
-  const updateQty = (index: number, delta: number) => {
-    setVariants(
-      variants.map((v, i) =>
-        i === index ? { ...v, quantity: Math.max(0, v.quantity + delta) } : v,
+  const updateQty = (size: Size, delta: number) => {
+    setSizeStocks(
+      sizeStocks.map((s) =>
+        s.size === size
+          ? { ...s, quantity: Math.max(0, s.quantity + delta) }
+          : s,
       ),
     );
   };
@@ -245,7 +239,10 @@ export default function AddProductScreen() {
             gender,
             categoryGroup: categoryGroup.trim(),
             subcategory: subcategory.trim(),
-            variants: variants.map(({ size, color }) => ({ size, color })),
+            variants: sizeStocks.map(({ size }) => ({
+              size,
+              color: DEFAULT_COLOR,
+            })),
             images,
             status: "active",
           },
@@ -255,18 +252,18 @@ export default function AddProductScreen() {
       const productId = data?.createProduct.id;
       const productName = data?.createProduct.name ?? name;
 
-      // Add initial stock for each variant that has quantity > 0
+      // Add initial stock for each size that has quantity > 0
       if (productId) {
-        const stockOps = variants.filter((v) => v.quantity > 0);
+        const stockOps = sizeStocks.filter((s) => s.quantity > 0);
         await Promise.all(
-          stockOps.map((v) =>
+          stockOps.map((s) =>
             addStock({
               variables: {
                 input: {
                   productId,
-                  size: v.size,
-                  color: v.color,
-                  quantity: v.quantity,
+                  size: s.size,
+                  color: DEFAULT_COLOR,
+                  quantity: s.quantity,
                 },
               },
             }),
@@ -545,7 +542,7 @@ export default function AddProductScreen() {
               C={C}
             />
 
-            {/* ── Variants ────────────────────────────────────────────── */}
+            {/* ── Sizes & Stock ────────────────────────────────────── */}
             <View style={{ marginBottom: 16 }}>
               <Text
                 style={{
@@ -557,35 +554,38 @@ export default function AddProductScreen() {
                   marginBottom: 8,
                 }}
               >
-                Variants & Initial Stock
+                Available Sizes
               </Text>
 
-              {/* Size picker */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={{ marginBottom: 10 }}
+              {/* Size chips */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
               >
                 {SIZES.map((s) => {
-                  const selected = newSize === s;
+                  const selected = isSizeSelected(s);
                   return (
                     <TouchableOpacity
                       key={s}
-                      onPress={() => setNewSize(s)}
+                      onPress={() => toggleSize(s)}
                       activeOpacity={0.7}
                       style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 8,
-                        borderRadius: 8,
+                        paddingHorizontal: 18,
+                        paddingVertical: 10,
+                        borderRadius: 10,
                         backgroundColor: selected ? C.accentMuted : C.surface,
                         borderWidth: 1,
                         borderColor: selected ? C.accent : C.border,
                         marginRight: 8,
+                        marginBottom: 8,
                       }}
                     >
                       <Text
                         style={{
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: "600",
                           color: selected ? C.accent : C.textSecondary,
                         }}
@@ -595,130 +595,10 @@ export default function AddProductScreen() {
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
-
-              {/* Color + Qty + Add */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 12,
-                }}
-              >
-                <TextInput
-                  value={newColor}
-                  onChangeText={setNewColor}
-                  placeholder="Color (e.g. negro)"
-                  placeholderTextColor={C.textTertiary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={{
-                    flex: 1,
-                    backgroundColor: C.surface,
-                    borderWidth: 1,
-                    borderColor: C.border,
-                    borderRadius: 10,
-                    paddingVertical: 11,
-                    paddingHorizontal: 14,
-                    fontSize: 14,
-                    color: C.textPrimary,
-                    marginRight: 8,
-                  }}
-                />
-                {/* Quantity stepper */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginRight: 8,
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={() =>
-                      setNewQty(
-                        String(Math.max(0, (parseInt(newQty) || 0) - 1)),
-                      )
-                    }
-                    activeOpacity={0.7}
-                    style={{
-                      width: 32,
-                      height: 44,
-                      borderRadius: 8,
-                      backgroundColor: C.surface,
-                      borderWidth: 1,
-                      borderColor: C.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        color: C.textPrimary,
-                        lineHeight: 22,
-                      }}
-                    >
-                      −
-                    </Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    value={newQty}
-                    onChangeText={setNewQty}
-                    keyboardType="number-pad"
-                    style={{
-                      width: 40,
-                      textAlign: "center",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      color: C.textPrimary,
-                      backgroundColor: C.surface,
-                      borderWidth: 1,
-                      borderColor: C.border,
-                      borderRadius: 8,
-                      paddingVertical: 11,
-                      marginHorizontal: 4,
-                    }}
-                  />
-                  <TouchableOpacity
-                    onPress={() =>
-                      setNewQty(String((parseInt(newQty) || 0) + 1))
-                    }
-                    activeOpacity={0.7}
-                    style={{
-                      width: 32,
-                      height: 44,
-                      borderRadius: 8,
-                      backgroundColor: C.accent,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{ fontSize: 18, color: "#fff", lineHeight: 22 }}
-                    >
-                      +
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {/* Add variant button */}
-                <TouchableOpacity
-                  onPress={addVariant}
-                  activeOpacity={0.7}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 10,
-                    backgroundColor: C.accent,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="checkmark" size={22} color="#fff" />
-                </TouchableOpacity>
               </View>
 
-              {/* Variant list */}
-              {variants.length === 0 ? (
+              {/* Stock per selected size */}
+              {sizeStocks.length === 0 ? (
                 <View
                   style={{
                     padding: 16,
@@ -730,115 +610,123 @@ export default function AddProductScreen() {
                   }}
                 >
                   <Text style={{ fontSize: 13, color: C.textTertiary }}>
-                    No variants added yet
+                    Tap sizes above to add them
                   </Text>
                 </View>
               ) : (
-                <View
-                  style={{
-                    backgroundColor: C.surface,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: C.border,
-                    overflow: "hidden",
-                  }}
-                >
-                  {variants.map((v, i) => (
-                    <View
-                      key={`${v.size}-${v.color}`}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderBottomWidth: i < variants.length - 1 ? 1 : 0,
-                        borderBottomColor: C.border,
-                      }}
-                    >
-                      <Text
-                        style={{ flex: 1, fontSize: 14, color: C.textPrimary }}
-                      >
-                        {v.size} · {v.color}
-                      </Text>
-                      {/* Stock stepper */}
+                <>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      letterSpacing: 1,
+                      color: C.textTertiary,
+                      textTransform: "uppercase",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Initial Stock
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: C.surface,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: C.border,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {sizeStocks.map((s, i) => (
                       <View
+                        key={s.size}
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          marginRight: 12,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderBottomWidth: i < sizeStocks.length - 1 ? 1 : 0,
+                          borderBottomColor: C.border,
                         }}
                       >
-                        <TouchableOpacity
-                          onPress={() => updateQty(i, -1)}
-                          activeOpacity={0.7}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            borderWidth: 1,
-                            borderColor: C.border,
-                            backgroundColor: C.background,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 16,
-                              color: C.textPrimary,
-                              lineHeight: 20,
-                            }}
-                          >
-                            −
-                          </Text>
-                        </TouchableOpacity>
                         <Text
                           style={{
-                            width: 32,
-                            textAlign: "center",
-                            fontSize: 14,
-                            fontWeight: "700",
-                            color: v.quantity > 0 ? C.accent : C.textTertiary,
+                            flex: 1,
+                            fontSize: 15,
+                            fontWeight: "600",
+                            color: C.textPrimary,
                           }}
                         >
-                          {v.quantity}
+                          {s.size}
                         </Text>
-                        <TouchableOpacity
-                          onPress={() => updateQty(i, 1)}
-                          activeOpacity={0.7}
+                        <View
                           style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            backgroundColor: C.accent,
+                            flexDirection: "row",
                             alignItems: "center",
-                            justifyContent: "center",
                           }}
                         >
-                          <Text
+                          <TouchableOpacity
+                            onPress={() => updateQty(s.size, -1)}
+                            activeOpacity={0.7}
                             style={{
-                              fontSize: 16,
-                              color: "#fff",
-                              lineHeight: 20,
+                              width: 30,
+                              height: 30,
+                              borderRadius: 15,
+                              borderWidth: 1,
+                              borderColor: C.border,
+                              backgroundColor: C.background,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              opacity: s.quantity === 0 ? 0.35 : 1,
                             }}
                           >
-                            +
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                color: C.textPrimary,
+                                lineHeight: 20,
+                              }}
+                            >
+                              −
+                            </Text>
+                          </TouchableOpacity>
+                          <Text
+                            style={{
+                              width: 36,
+                              textAlign: "center",
+                              fontSize: 15,
+                              fontWeight: "700",
+                              color: s.quantity > 0 ? C.accent : C.textTertiary,
+                            }}
+                          >
+                            {s.quantity}
                           </Text>
-                        </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => updateQty(s.size, 1)}
+                            activeOpacity={0.7}
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: 15,
+                              backgroundColor: C.accent,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                color: "#fff",
+                                lineHeight: 20,
+                              }}
+                            >
+                              +
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => removeVariant(i)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={C.textTertiary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
+                    ))}
+                  </View>
+                </>
               )}
             </View>
 

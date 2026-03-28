@@ -1,5 +1,6 @@
 import { type ThemeColors } from "@/constants/Colors";
 import {
+  ADD_ORDER_NOTE,
   CANCEL_ORDER,
   UPDATE_ORDER_STATUS,
   UPDATE_PAYMENT_STATUS,
@@ -9,6 +10,7 @@ import { useColors } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +18,7 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -320,6 +323,8 @@ export default function OrderDetailScreen() {
 
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
 
+  const [noteText, setNoteText] = useState("");
+
   const { data, loading, error } = useQuery<GetOrderData>(GET_ORDER, {
     variables: { orderId },
     skip: !orderId,
@@ -338,8 +343,14 @@ export default function OrderDetailScreen() {
     UPDATE_PAYMENT_STATUS,
     { refetchQueries: refetchOrder },
   );
+  const [addNote, { loading: addingNote }] = useMutation(ADD_ORDER_NOTE, {
+    refetchQueries: refetchOrder,
+    onCompleted: () => setNoteText(""),
+    onError: (err) => Alert.alert("Error", err.message),
+  });
 
-  const isActionLoading = updatingStatus || cancelling || updatingPayment;
+  const isActionLoading =
+    updatingStatus || cancelling || updatingPayment || addingNote;
 
   // ── Invalid id ─────────────────────────────────────────────────────────────
   if (!orderId) {
@@ -510,6 +521,19 @@ export default function OrderDetailScreen() {
     ]);
   };
 
+  const handleAddNote = () => {
+    const text = noteText.trim();
+    if (!text) return;
+    addNote({
+      variables: {
+        input: {
+          orderId,
+          note: { message: text, kind: "internal" },
+        },
+      },
+    });
+  };
+
   return (
     <>
       <StatusBar
@@ -517,7 +541,7 @@ export default function OrderDetailScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
@@ -793,6 +817,59 @@ export default function OrderDetailScreen() {
                 );
               })
             )}
+
+            {/* Add note input */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+                borderTopWidth: 1,
+                borderTopColor: C.border,
+              }}
+            >
+              <TextInput
+                value={noteText}
+                onChangeText={setNoteText}
+                placeholder="Add a note…"
+                placeholderTextColor={C.textTertiary}
+                autoCapitalize="sentences"
+                multiline
+                style={{
+                  flex: 1,
+                  backgroundColor: C.background,
+                  borderWidth: 1,
+                  borderColor: C.border,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  fontSize: 13,
+                  color: C.textPrimary,
+                  maxHeight: 80,
+                  marginRight: 8,
+                }}
+              />
+              <TouchableOpacity
+                onPress={handleAddNote}
+                disabled={addingNote || !noteText.trim()}
+                activeOpacity={0.7}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: C.accent,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: addingNote || !noteText.trim() ? 0.4 : 1,
+                }}
+              >
+                {addingNote ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="send" size={18} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
           </Section>
 
           {/* ── Actions ─────────────────────────────────────────────── */}

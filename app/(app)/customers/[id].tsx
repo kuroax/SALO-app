@@ -1,15 +1,23 @@
 import type { ThemeColors } from "@/constants/Colors";
-import { GET_CUSTOMER } from "@/lib/graphql/queries/customer.queries";
+import {
+  DEACTIVATE_CUSTOMER,
+  UPDATE_CUSTOMER,
+} from "@/lib/graphql/mutations/customer.mutations";
+import { GET_CUSTOMER, LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
 import { useColors } from "@/lib/hooks/useColors";
-import { useQuery } from "@apollo/client/react";
+import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -35,6 +43,21 @@ type Customer = {
 };
 
 type GetCustomerData = { customer: Customer };
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CHANNELS: { value: ContactChannel; label: string }[] = [
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "instagram", label: "Instagram" },
+  { value: "both", label: "Both" },
+];
+
+const ALL_TAGS: { value: CustomerTag; label: string; color: string }[] = [
+  { value: "vip", label: "VIP", color: "#f59e0b" },
+  { value: "wholesale", label: "Wholesale", color: "#6366f1" },
+  { value: "problematic", label: "Problematic", color: "#ef4444" },
+  { value: "regular", label: "Regular", color: "#9a9284" },
+];
 
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
@@ -173,7 +196,68 @@ function InfoRow({
   );
 }
 
+// ─── Edit Field ───────────────────────────────────────────────────────────────
+
+function EditField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+  keyboardType,
+  C,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  keyboardType?: "default" | "phone-pad";
+  C: ThemeColors;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={C.textTertiary}
+        keyboardType={keyboardType ?? "default"}
+        autoCapitalize={keyboardType === "phone-pad" ? "none" : "words"}
+        autoCorrect={false}
+        multiline={multiline}
+        style={{
+          backgroundColor: C.background,
+          borderWidth: 1,
+          borderColor: C.border,
+          borderRadius: 10,
+          paddingVertical: 11,
+          paddingHorizontal: 14,
+          fontSize: 14,
+          color: C.textPrimary,
+          textAlignVertical: multiline ? "top" : "center",
+          minHeight: multiline ? 80 : undefined,
+        }}
+      />
+    </View>
+  );
+}
+
 // ─── Customer Detail Screen ───────────────────────────────────────────────────
+
+const LIST_LIMIT = 100;
 
 export default function CustomerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -184,10 +268,103 @@ export default function CustomerDetailScreen() {
 
   const customerId = typeof id === "string" && id.length > 0 ? id : null;
 
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editInstagram, setEditInstagram] = useState("");
+  const [editChannel, setEditChannel] = useState<ContactChannel>("whatsapp");
+  const [editTags, setEditTags] = useState<CustomerTag[]>([]);
+  const [editNotes, setEditNotes] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+
   const { data, loading, error } = useQuery<GetCustomerData>(GET_CUSTOMER, {
     variables: { id: customerId },
     skip: !customerId,
   });
+
+  const [updateCustomer, { loading: updating }] = useMutation(UPDATE_CUSTOMER, {
+    refetchQueries: [{ query: GET_CUSTOMER, variables: { id: customerId } }],
+    onCompleted: () => {
+      setEditVisible(false);
+      Alert.alert("Updated", "Customer updated.");
+    },
+    onError: (err) => Alert.alert("Error", err.message),
+  });
+
+  const [deactivateCustomer, { loading: deactivating }] = useMutation(
+    DEACTIVATE_CUSTOMER,
+    {
+      refetchQueries: [
+        {
+          query: LIST_CUSTOMERS,
+          variables: { input: { limit: LIST_LIMIT, isActive: true } },
+        },
+      ],
+      onCompleted: () => {
+        Alert.alert("Deleted", "Customer has been removed.", [
+          { text: "OK", onPress: () => router.replace("/customers") },
+        ]);
+      },
+      onError: (err) => Alert.alert("Error", err.message),
+    },
+  );
+
+  const openEdit = () => {
+    if (!data?.customer) return;
+    const c = data.customer;
+    setEditName(c.name);
+    setEditPhone(c.phone ?? "");
+    setEditInstagram(c.instagramHandle ?? "");
+    setEditChannel(c.contactChannel);
+    setEditTags([...c.tags]);
+    setEditNotes(c.notes ?? "");
+    setEditAddress(c.address ?? "");
+    setEditVisible(true);
+  };
+
+  const toggleEditTag = (tag: CustomerTag) => {
+    if (editTags.includes(tag)) {
+      setEditTags(editTags.filter((t) => t !== tag));
+    } else {
+      setEditTags([...editTags, tag]);
+    }
+  };
+
+  const handleUpdate = () => {
+    if (!customerId) return;
+    if (!editName.trim()) return Alert.alert("Required", "Name is required.");
+
+    updateCustomer({
+      variables: {
+        id: customerId,
+        input: {
+          name: editName.trim(),
+          phone: editPhone.trim() || null,
+          instagramHandle: editInstagram.trim() || null,
+          contactChannel: editChannel,
+          tags: editTags,
+          notes: editNotes.trim() || null,
+          address: editAddress.trim() || null,
+        },
+      },
+    });
+  };
+
+  const handleDelete = () => {
+    if (!customerId) return;
+    Alert.alert(
+      "Delete Customer",
+      `Remove "${data?.customer?.name}"? They will no longer appear in your customer list.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deactivateCustomer({ variables: { id: customerId } }),
+        },
+      ],
+    );
+  };
 
   // ── Invalid id ─────────────────────────────────────────────────────────────
   if (!customerId) {
@@ -293,7 +470,7 @@ export default function CustomerDetailScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
@@ -311,19 +488,17 @@ export default function CustomerDetailScreen() {
               alignItems: "center",
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="arrow-back" size={16} color={C.accent} />
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: C.accent,
-                  marginLeft: 4,
-                }}
-              >
-                Customers
-              </Text>
-            </View>
+            <Ionicons name="arrow-back" size={16} color={C.accent} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: C.accent,
+                marginLeft: 4,
+              }}
+            >
+              Customers
+            </Text>
           </TouchableOpacity>
 
           <View
@@ -368,12 +543,70 @@ export default function CustomerDetailScreen() {
             )}
           </View>
 
-          {/* Channel badge under name */}
+          {/* Channel badge */}
           <View style={{ marginTop: 8 }}>
             <Pill
               label={CHANNEL_LABELS[customer.contactChannel]}
               color={channelColor}
             />
+          </View>
+
+          {/* Action buttons */}
+          <View style={{ flexDirection: "row", marginTop: 20 }}>
+            <TouchableOpacity
+              onPress={openEdit}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: C.accentMuted,
+                borderRadius: 12,
+                paddingVertical: 12,
+                borderWidth: 1,
+                borderColor: C.accent + "40",
+                marginRight: 10,
+              }}
+            >
+              <Ionicons
+                name="pencil-outline"
+                size={16}
+                color={C.accent}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={{ fontSize: 14, fontWeight: "600", color: C.accent }}
+              >
+                Edit
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDelete}
+              disabled={deactivating}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: C.alertBg,
+                borderRadius: 12,
+                paddingVertical: 12,
+                borderWidth: 1,
+                borderColor: C.alert + "40",
+              }}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={16}
+                color={C.alert}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={{ fontSize: 14, fontWeight: "600", color: C.alert }}>
+                {deactivating ? "Deleting…" : "Delete"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -469,6 +702,204 @@ export default function CustomerDetailScreen() {
           </Section>
         </View>
       </ScrollView>
+
+      {/* ── Edit Modal ─────────────────────────────────────────────── */}
+      <Modal
+        visible={editVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={{ flex: 1, backgroundColor: C.background }}>
+          {/* Modal header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: C.border,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setEditVisible(false)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: C.textSecondary,
+                  fontWeight: "500",
+                }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <Text
+              style={{ fontSize: 16, fontWeight: "700", color: C.textPrimary }}
+            >
+              Edit Customer
+            </Text>
+            <TouchableOpacity
+              onPress={handleUpdate}
+              disabled={updating}
+              activeOpacity={0.7}
+            >
+              {updating ? (
+                <ActivityIndicator size="small" color={C.accent} />
+              ) : (
+                <Text
+                  style={{ fontSize: 15, color: C.accent, fontWeight: "700" }}
+                >
+                  Save
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          >
+            <EditField
+              label="Name"
+              value={editName}
+              onChangeText={setEditName}
+              C={C}
+            />
+            <EditField
+              label="Phone"
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="+521234567890"
+              keyboardType="phone-pad"
+              C={C}
+            />
+            <EditField
+              label="Instagram"
+              value={editInstagram}
+              onChangeText={setEditInstagram}
+              placeholder="handle"
+              C={C}
+            />
+
+            {/* Channel picker */}
+            <View style={{ marginBottom: 14 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Contact Channel
+              </Text>
+              <View style={{ flexDirection: "row" }}>
+                {CHANNELS.map((ch, i) => {
+                  const selected = editChannel === ch.value;
+                  return (
+                    <TouchableOpacity
+                      key={ch.value}
+                      onPress={() => setEditChannel(ch.value)}
+                      activeOpacity={0.7}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        backgroundColor: selected ? C.accentMuted : C.surface,
+                        borderWidth: 1,
+                        borderColor: selected ? C.accent : C.border,
+                        alignItems: "center",
+                        marginRight: i < CHANNELS.length - 1 ? 8 : 0,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color: selected ? C.accent : C.textSecondary,
+                        }}
+                      >
+                        {ch.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Tags */}
+            <View style={{ marginBottom: 14 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Tags
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {ALL_TAGS.map((tag) => {
+                  const selected = editTags.includes(tag.value);
+                  return (
+                    <TouchableOpacity
+                      key={tag.value}
+                      onPress={() => toggleEditTag(tag.value)}
+                      activeOpacity={0.7}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        backgroundColor: selected
+                          ? tag.color + "20"
+                          : C.surface,
+                        borderWidth: 1,
+                        borderColor: selected ? tag.color : C.border,
+                        marginRight: 8,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color: selected ? tag.color : C.textSecondary,
+                        }}
+                      >
+                        {tag.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <EditField
+              label="Address"
+              value={editAddress}
+              onChangeText={setEditAddress}
+              placeholder="Optional"
+              C={C}
+            />
+            <EditField
+              label="Notes"
+              value={editNotes}
+              onChangeText={setEditNotes}
+              placeholder="Optional"
+              multiline
+              C={C}
+            />
+          </ScrollView>
+        </View>
+      </Modal>
     </>
   );
 }

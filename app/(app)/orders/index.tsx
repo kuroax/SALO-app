@@ -14,7 +14,7 @@ import {
   Text,
   TouchableOpacity,
   useColorScheme,
-  View
+  View,
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -334,6 +334,7 @@ export default function OrdersScreen() {
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
   const C = useColors();
+  const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");
@@ -457,6 +458,30 @@ export default function OrdersScreen() {
             renderItem={({ item }) => <OrderCard order={item} C={C} />}
           />
         )}
+
+        {/* ── FAB ─────────────────────────────────────────────────────── */}
+        <TouchableOpacity
+          onPress={() => router.push("/orders/create-order")}
+          activeOpacity={0.85}
+          style={{
+            position: "absolute",
+            bottom: 100,
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: C.accent,
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 6,
+          }}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
       </View>
     </>
   );
