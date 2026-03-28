@@ -1,7 +1,7 @@
 import type { ThemeColors } from "@/constants/Colors";
 import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
-import { LIST_PRODUCTS } from "@/lib/graphql/queries/product.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
+import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   RefreshControl,
   StatusBar,
   Text,
@@ -16,6 +17,27 @@ import {
   useColorScheme,
   View,
 } from "react-native";
+
+// ─── Query (includes images) ──────────────────────────────────────────────────
+
+const LIST_PRODUCTS_WITH_IMAGES = gql`
+  query ListProductsWithImages($filters: ListProductsInput) {
+    products(filters: $filters) {
+      products {
+        id
+        name
+        brand
+        status
+        images
+        variants {
+          size
+          color
+        }
+      }
+      total
+    }
+  }
+`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +51,7 @@ type Product = {
   name: string;
   brand: string;
   status: string;
+  images: string[];
   variants: ProductVariant[];
 };
 
@@ -57,6 +80,7 @@ function ProductCard({
   C: ThemeColors;
 }) {
   const variantCount = product.variants.length;
+  const imageUrl = product.images?.[0] ?? null;
 
   return (
     <TouchableOpacity
@@ -65,61 +89,95 @@ function ProductCard({
       style={{
         backgroundColor: C.surface,
         borderRadius: 14,
-        padding: 16,
+        padding: 12,
         marginBottom: 10,
         borderWidth: 1,
         borderColor: hasLowStock ? C.pending + "40" : C.border,
+        flexDirection: "row",
+        alignItems: "center",
       }}
     >
+      {/* Image or placeholder */}
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
+          width: 64,
+          height: 64,
+          borderRadius: 10,
+          backgroundColor: C.background,
+          borderWidth: 1,
+          borderColor: C.border,
+          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          marginRight: 14,
+          flexShrink: 0,
         }}
       >
-        <View style={{ flex: 1, marginRight: 12 }}>
-          <Text
-            style={{ fontSize: 15, fontWeight: "700", color: C.textPrimary }}
-            numberOfLines={1}
-          >
-            {product.name}
-          </Text>
-          <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
-            {product.brand}
-          </Text>
-        </View>
-
-        {hasLowStock && (
-          <View
-            style={{
-              backgroundColor: C.pendingBg,
-              borderRadius: 6,
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderWidth: 1,
-              borderColor: C.pending + "40",
-            }}
-          >
-            <Text style={{ fontSize: 10, fontWeight: "700", color: C.pending }}>
-              Low Stock
-            </Text>
-          </View>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+        ) : (
+          <Ionicons name="cube-outline" size={26} color={C.textTertiary} />
         )}
       </View>
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginTop: 12,
-        }}
-      >
-        <Text style={{ fontSize: 12, color: C.textTertiary }}>
-          {variantCount} {variantCount === 1 ? "variant" : "variants"}
-        </Text>
-        <Ionicons name="chevron-forward" size={14} color={C.textTertiary} />
+      {/* Info */}
+      <View style={{ flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text
+              style={{ fontSize: 15, fontWeight: "700", color: C.textPrimary }}
+              numberOfLines={1}
+            >
+              {product.name}
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}
+            >
+              {product.brand}
+            </Text>
+          </View>
+          {hasLowStock && (
+            <View
+              style={{
+                backgroundColor: C.pendingBg,
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderWidth: 1,
+                borderColor: C.pending + "40",
+              }}
+            >
+              <Text
+                style={{ fontSize: 10, fontWeight: "700", color: C.pending }}
+              >
+                Low Stock
+              </Text>
+            </View>
+          )}
+        </View>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 10,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: C.textTertiary }}>
+            {variantCount} {variantCount === 1 ? "variant" : "variants"}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={C.textTertiary} />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -191,7 +249,7 @@ export default function InventoryScreen() {
     loading: productsLoading,
     error: productsError,
     refetch: refetchProducts,
-  } = useQuery<ListProductsData>(LIST_PRODUCTS, {
+  } = useQuery<ListProductsData>(LIST_PRODUCTS_WITH_IMAGES, {
     variables: { filters: { status: "active", limit: 50 } },
   });
 
