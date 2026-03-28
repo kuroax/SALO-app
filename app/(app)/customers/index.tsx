@@ -1,19 +1,14 @@
 import type { ThemeColors } from "@/constants/Colors";
-import { CREATE_CUSTOMER } from "@/lib/graphql/mutations/customer.mutations";
 import { LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
-import { useColors } from "@/lib/hooks/useColors";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
+import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Modal,
-  Pressable,
   RefreshControl,
-  ScrollView,
   StatusBar,
   Text,
   TextInput,
@@ -44,27 +39,7 @@ type ListCustomersData = {
   };
 };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const CHANNELS: { value: ContactChannel; label: string }[] = [
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "instagram", label: "Instagram" },
-  { value: "both", label: "Both" },
-];
-
-const TAGS: { value: CustomerTag; label: string; color: string }[] = [
-  { value: "vip", label: "VIP", color: "#f59e0b" },
-  { value: "wholesale", label: "Wholesale", color: "#6366f1" },
-  { value: "regular", label: "Regular", color: "#9a9284" },
-];
-
 // ─── Style maps ───────────────────────────────────────────────────────────────
-
-const CHANNEL_COLORS: Record<ContactChannel, string> = {
-  whatsapp: "#22c55e",
-  instagram: "#a855f7",
-  both: "#3b82f6",
-};
 
 const CHANNEL_ICONS: Record<
   ContactChannel,
@@ -88,65 +63,6 @@ const TAG_LABELS: Record<CustomerTag, string> = {
   problematic: "Problematic",
   regular: "Regular",
 };
-
-// ─── Field ────────────────────────────────────────────────────────────────────
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  multiline,
-  keyboardType,
-  C,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder: string;
-  multiline?: boolean;
-  keyboardType?: "default" | "phone-pad";
-  C: ThemeColors;
-}) {
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 1,
-          color: C.textTertiary,
-          textTransform: "uppercase",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={C.textTertiary}
-        keyboardType={keyboardType ?? "default"}
-        autoCapitalize={keyboardType === "phone-pad" ? "none" : "words"}
-        autoCorrect={false}
-        multiline={multiline}
-        style={{
-          backgroundColor: C.background,
-          borderWidth: 1,
-          borderColor: C.border,
-          borderRadius: 10,
-          paddingVertical: 11,
-          paddingHorizontal: 14,
-          fontSize: 14,
-          color: C.textPrimary,
-          textAlignVertical: multiline ? "top" : "center",
-          minHeight: multiline ? 80 : undefined,
-        }}
-      />
-    </View>
-  );
-}
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -179,6 +95,12 @@ function Avatar({ name, color }: { name: string; color: string }) {
 
 // ─── Customer Row ─────────────────────────────────────────────────────────────
 
+const CHANNEL_COLORS: Record<ContactChannel, string> = {
+  whatsapp: "#22c55e",
+  instagram: "#a855f7",
+  both: "#3b82f6",
+};
+
 function CustomerRow({
   customer,
   onPress,
@@ -197,17 +119,17 @@ function CustomerRow({
   const channelIcon = CHANNEL_ICONS[customer.contactChannel];
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.7}
+      style={{
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderBottomWidth: isLast ? 0 : 1,
         borderBottomColor: C.border,
-        backgroundColor: pressed ? C.surface : "transparent",
-      })}
+      }}
     >
       <Avatar name={customer.name} color={channelColor} />
       <View style={{ flex: 1, marginLeft: 14 }}>
@@ -262,13 +184,13 @@ function CustomerRow({
           </View>
         )}
       </View>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyState({ C }: { C: ThemeColors }) {
+function EmptyState({ C, isSearch }: { C: ThemeColors; isSearch: boolean }) {
   return (
     <View
       style={{
@@ -290,7 +212,11 @@ function EmptyState({ C }: { C: ThemeColors }) {
           marginBottom: 16,
         }}
       >
-        <Ionicons name="people-outline" size={28} color={C.accent} />
+        <Ionicons
+          name={isSearch ? "search-outline" : "people-outline"}
+          size={28}
+          color={C.accent}
+        />
       </View>
       <Text
         style={{
@@ -300,7 +226,7 @@ function EmptyState({ C }: { C: ThemeColors }) {
           marginBottom: 6,
         }}
       >
-        No customers yet
+        {isSearch ? "No results found" : "No customers yet"}
       </Text>
       <Text
         style={{
@@ -310,8 +236,9 @@ function EmptyState({ C }: { C: ThemeColors }) {
           lineHeight: 20,
         }}
       >
-        Tap + to add your first customer, or they'll appear automatically from
-        WhatsApp and Instagram.
+        {isSearch
+          ? "Try a different name, phone or handle"
+          : "Customers will appear here once they interact via WhatsApp or Instagram."}
       </Text>
     </View>
   );
@@ -349,20 +276,12 @@ const LIMIT = 100;
 export default function CustomersScreen() {
   const router = useRouter();
   const C = useColors();
+  const scheme = useScheme();
   const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const _scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const [refreshing, setRefreshing] = useState(false);
-  const [addVisible, setAddVisible] = useState(false);
-
-  // ── Add customer state ──────────────────────────────────────────────────
-  const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newInstagram, setNewInstagram] = useState("");
-  const [newChannel, setNewChannel] = useState<ContactChannel>("whatsapp");
-  const [newTags, setNewTags] = useState<CustomerTag[]>([]);
-  const [newNotes, setNewNotes] = useState("");
-  const [newAddress, setNewAddress] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data, loading, error, refetch } = useQuery<ListCustomersData>(
     LIST_CUSTOMERS,
@@ -372,84 +291,27 @@ export default function CustomersScreen() {
     },
   );
 
-  const [createCustomer, { loading: creating }] = useMutation(CREATE_CUSTOMER, {
-    refetchQueries: [
-      {
-        query: LIST_CUSTOMERS,
-        variables: { input: { limit: LIMIT, isActive: true } },
-      },
-    ],
-    onCompleted: () => {
-      setAddVisible(false);
-      resetForm();
-      Alert.alert("Done", "Customer added.");
-    },
-    onError: (err) => Alert.alert("Error", err.message),
-  });
-
-  const resetForm = () => {
-    setNewName("");
-    setNewPhone("");
-    setNewInstagram("");
-    setNewChannel("whatsapp");
-    setNewTags([]);
-    setNewNotes("");
-    setNewAddress("");
-  };
-
-  const toggleTag = (tag: CustomerTag) => {
-    if (newTags.includes(tag)) {
-      setNewTags(newTags.filter((t) => t !== tag));
-    } else {
-      setNewTags([...newTags, tag]);
-    }
-  };
-
-  const handleCreate = () => {
-    if (!newName.trim())
-      return Alert.alert("Required", "Customer name is required.");
-
-    if (newChannel === "whatsapp" && !newPhone.trim() && !newInstagram.trim()) {
-      return Alert.alert("Required", "Phone number is required for WhatsApp.");
-    }
-    if (
-      newChannel === "instagram" &&
-      !newInstagram.trim() &&
-      !newPhone.trim()
-    ) {
-      return Alert.alert(
-        "Required",
-        "Instagram handle is required for Instagram.",
-      );
-    }
-
-    createCustomer({
-      variables: {
-        input: {
-          name: newName.trim(),
-          phone: newPhone.trim() || null,
-          instagramHandle: newInstagram.trim() || null,
-          contactChannel: newChannel,
-          tags: newTags.length > 0 ? newTags : undefined,
-          notes: newNotes.trim() || null,
-          address: newAddress.trim() || null,
-        },
-      },
-    });
-  };
-
   const customers = data?.customers.customers ?? [];
 
-  // Group alphabetically
-  const grouped = customers
+  // ── Search filter ──────────────────────────────────────────────────────────
+  const filtered = searchQuery.trim()
+    ? customers.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.phone ?? "").includes(q) ||
+          (c.instagramHandle ?? "").toLowerCase().includes(q)
+        );
+      })
+    : customers;
+
+  // ── Group alphabetically ───────────────────────────────────────────────────
+  const grouped = filtered
     .reduce<{ letter: string; items: Customer[] }[]>((acc, customer) => {
       const letter = customer.name[0]?.toUpperCase() ?? "#";
       const existing = acc.find((g) => g.letter === letter);
-      if (existing) {
-        existing.items.push(customer);
-      } else {
-        acc.push({ letter, items: [customer] });
-      }
+      if (existing) existing.items.push(customer);
+      else acc.push({ letter, items: [customer] });
       return acc;
     }, [])
     .sort((a, b) => a.letter.localeCompare(b.letter));
@@ -537,11 +399,7 @@ export default function CustomersScreen() {
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
-          style={{
-            paddingHorizontal: 20,
-            paddingTop: 64,
-            paddingBottom: 16,
-          }}
+          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 16 }}
         >
           <Text
             style={{
@@ -562,9 +420,58 @@ export default function CustomersScreen() {
                 fontWeight: "600",
               }}
             >
-              {data?.customers.total} total
+              {filtered.length}{" "}
+              {filtered.length === 1 ? "customer" : "customers"}
+              {searchQuery ? " found" : " total"}
             </Text>
           )}
+
+          {/* Search bar */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: C.surface,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: C.border,
+              paddingHorizontal: 12,
+              marginTop: 12,
+            }}
+          >
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color={C.textTertiary}
+              style={{ marginRight: 8 }}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search by name, phone or handle…"
+              placeholderTextColor={C.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: C.textPrimary,
+              }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={C.textTertiary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={{ height: 1, backgroundColor: C.border }} />
@@ -574,7 +481,9 @@ export default function CustomersScreen() {
           data={listData}
           keyExtractor={(item) => item.key}
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
-          ListEmptyComponent={<EmptyState C={C} />}
+          ListEmptyComponent={
+            <EmptyState C={C} isSearch={searchQuery.length > 0} />
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -583,9 +492,8 @@ export default function CustomersScreen() {
             />
           }
           renderItem={({ item }) => {
-            if (item.type === "header") {
+            if (item.type === "header")
               return <SectionDivider letter={item.letter} C={C} />;
-            }
             return (
               <CustomerRow
                 customer={item.customer}
@@ -601,232 +509,7 @@ export default function CustomersScreen() {
             );
           }}
         />
-        {/* ── FAB ─────────────────────────────────────────────────────── */}
-        <TouchableOpacity
-          onPress={() => {
-            resetForm();
-            setAddVisible(true);
-          }}
-          activeOpacity={0.85}
-          style={{
-            position: "absolute",
-            bottom: 100,
-            right: 20,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: C.accent,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-            elevation: 6,
-          }}
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </TouchableOpacity>
       </View>
-
-      {/* ── Add Customer Modal ─────────────────────────────────────── */}
-      <Modal
-        visible={addVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={{ flex: 1, backgroundColor: C.background }}>
-          {/* Modal header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 20,
-              paddingTop: 20,
-              paddingBottom: 16,
-              borderBottomWidth: 1,
-              borderBottomColor: C.border,
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => setAddVisible(false)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={{
-                  fontSize: 15,
-                  color: C.textSecondary,
-                  fontWeight: "500",
-                }}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-            <Text
-              style={{ fontSize: 16, fontWeight: "700", color: C.textPrimary }}
-            >
-              Add Customer
-            </Text>
-            <TouchableOpacity
-              onPress={handleCreate}
-              disabled={creating}
-              activeOpacity={0.7}
-            >
-              {creating ? (
-                <ActivityIndicator size="small" color={C.accent} />
-              ) : (
-                <Text
-                  style={{ fontSize: 15, color: C.accent, fontWeight: "700" }}
-                >
-                  Save
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
-          >
-            <Field
-              label="Name"
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="e.g. María García"
-              C={C}
-            />
-            <Field
-              label="Phone"
-              value={newPhone}
-              onChangeText={setNewPhone}
-              placeholder="e.g. +521234567890"
-              keyboardType="phone-pad"
-              C={C}
-            />
-            <Field
-              label="Instagram"
-              value={newInstagram}
-              onChangeText={setNewInstagram}
-              placeholder="e.g. mariagarcia"
-              C={C}
-            />
-
-            {/* Channel picker */}
-            <View style={{ marginBottom: 14 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                Contact Channel
-              </Text>
-              <View style={{ flexDirection: "row" }}>
-                {CHANNELS.map((ch, i) => {
-                  const selected = newChannel === ch.value;
-                  return (
-                    <TouchableOpacity
-                      key={ch.value}
-                      onPress={() => setNewChannel(ch.value)}
-                      activeOpacity={0.7}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderRadius: 10,
-                        backgroundColor: selected ? C.accentMuted : C.surface,
-                        borderWidth: 1,
-                        borderColor: selected ? C.accent : C.border,
-                        alignItems: "center",
-                        marginRight: i < CHANNELS.length - 1 ? 8 : 0,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: selected ? C.accent : C.textSecondary,
-                        }}
-                      >
-                        {ch.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Tags */}
-            <View style={{ marginBottom: 14 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                Tags
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                {TAGS.map((tag) => {
-                  const selected = newTags.includes(tag.value);
-                  return (
-                    <TouchableOpacity
-                      key={tag.value}
-                      onPress={() => toggleTag(tag.value)}
-                      activeOpacity={0.7}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        backgroundColor: selected
-                          ? tag.color + "20"
-                          : C.surface,
-                        borderWidth: 1,
-                        borderColor: selected ? tag.color : C.border,
-                        marginRight: 8,
-                        marginBottom: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: selected ? tag.color : C.textSecondary,
-                        }}
-                      >
-                        {tag.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <Field
-              label="Address"
-              value={newAddress}
-              onChangeText={setNewAddress}
-              placeholder="Optional"
-              C={C}
-            />
-            <Field
-              label="Notes"
-              value={newNotes}
-              onChangeText={setNewNotes}
-              placeholder="Optional"
-              multiline
-              C={C}
-            />
-          </ScrollView>
-        </View>
-      </Modal>
     </>
   );
 }

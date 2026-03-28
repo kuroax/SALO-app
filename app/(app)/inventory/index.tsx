@@ -13,6 +13,7 @@ import {
   RefreshControl,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -243,6 +244,7 @@ export default function InventoryScreen() {
   const _scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const {
     data: productsData,
@@ -257,6 +259,15 @@ export default function InventoryScreen() {
     useQuery<LowStockData>(GET_LOW_STOCK);
 
   const products = productsData?.products.products ?? [];
+
+  const filteredProducts = searchQuery.trim()
+    ? products.filter((p) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)
+        );
+      })
+    : products;
   const lowStockProductIds = new Set(
     lowStockData?.lowStock.map((item) => item.productId) ?? [],
   );
@@ -347,14 +358,63 @@ export default function InventoryScreen() {
             <Text
               style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
             >
-              {products.length} {products.length === 1 ? "product" : "products"}
+              {filteredProducts.length}{" "}
+              {filteredProducts.length === 1 ? "product" : "products"}
+              {searchQuery ? " found" : ""}
             </Text>
           )}
+
+          {/* Search bar */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: C.surface,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: C.border,
+              paddingHorizontal: 12,
+              marginTop: 12,
+            }}
+          >
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color={C.textTertiary}
+              style={{ marginRight: 8 }}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search by name or brand…"
+              placeholderTextColor={C.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: C.textPrimary,
+              }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={C.textTertiary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* ── List ────────────────────────────────────────────────────── */}
         <FlatList
-          data={products}
+          data={filteredProducts}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{
             paddingHorizontal: 20,

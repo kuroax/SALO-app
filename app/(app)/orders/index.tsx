@@ -1,6 +1,7 @@
 import { type ThemeColors } from "@/constants/Colors";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors } from "@/lib/hooks/useColors";
+import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -12,10 +13,28 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
+
+// ─── Customer names query (lightweight — id + name only) ─────────────────────
+
+const LIST_CUSTOMER_NAMES = gql`
+  query ListCustomerNames {
+    customers(input: { limit: 500, isActive: true }) {
+      customers {
+        id
+        name
+      }
+    }
+  }
+`;
+
+type CustomerNamesData = {
+  customers: { customers: { id: string; name: string }[] };
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -128,7 +147,15 @@ function FilterChip({
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-function OrderCard({ order, C }: { order: Order; C: ThemeColors }) {
+function OrderCard({
+  order,
+  customerName,
+  C,
+}: {
+  order: Order;
+  customerName: string | null;
+  C: ThemeColors;
+}) {
   const router = useRouter();
   const statusColor = STATUS_COLORS[order.status];
   const paymentColor = PAYMENT_COLORS[order.paymentStatus];
@@ -218,7 +245,8 @@ function OrderCard({ order, C }: { order: Order; C: ThemeColors }) {
         }}
       >
         <Text style={{ fontSize: 12, color: C.textTertiary }}>
-          {order.customerId ? "Customer assigned" : "No customer"}
+          {customerName ??
+            (order.customerId ? "Customer assigned" : "No customer")}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text
@@ -334,10 +362,11 @@ export default function OrdersScreen() {
   const raw = useColorScheme();
   const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
   const C = useColors();
-  const router = useRouter();
+  const router = useRouter(); // ← fix: router now in scope for the FAB
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data, loading, error, refetch } = useQuery<ListOrdersData>(
     LIST_ORDERS,
@@ -353,7 +382,20 @@ export default function OrdersScreen() {
     },
   );
 
+  const { data: customerNamesData } =
+    useQuery<CustomerNamesData>(LIST_CUSTOMER_NAMES);
+
+  const customerNameMap = new Map(
+    (customerNamesData?.customers.customers ?? []).map((c) => [c.id, c.name]),
+  );
+
   const orders: Order[] = data?.orders ?? [];
+
+  const filteredOrders = searchQuery.trim()
+    ? orders.filter((o) =>
+        o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : orders;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -406,9 +448,57 @@ export default function OrdersScreen() {
             <Text
               style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
             >
-              {orders.length} order{orders.length === 1 ? "" : "s"}
+              {filteredOrders.length} order
+              {filteredOrders.length === 1 ? "" : "s"}
             </Text>
           )}
+
+          {/* Search bar */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: C.surface,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: C.border,
+              paddingHorizontal: 12,
+              marginTop: 12,
+            }}
+          >
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color={C.textTertiary}
+              style={{ marginRight: 8 }}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search by order number…"
+              placeholderTextColor={C.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: C.textPrimary,
+              }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={C.textTertiary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* ── Filter chips — ScrollView avoids nested VirtualizedList warning ── */}
@@ -439,12 +529,12 @@ export default function OrdersScreen() {
         ) : (
           /* ── Orders list ────────────────────────────────────────────── */
           <FlatList
-            data={orders}
+            data={filteredOrders}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{
               paddingHorizontal: 20,
               paddingTop: 4,
-              paddingBottom: 32,
+              paddingBottom: 120,
               flexGrow: 1,
             }}
             ListEmptyComponent={<EmptyState C={C} />}
@@ -455,7 +545,17 @@ export default function OrdersScreen() {
                 tintColor={C.accent}
               />
             }
-            renderItem={({ item }) => <OrderCard order={item} C={C} />}
+            renderItem={({ item }) => (
+              <OrderCard
+                order={item}
+                customerName={
+                  item.customerId
+                    ? (customerNameMap.get(item.customerId) ?? null)
+                    : null
+                }
+                C={C}
+              />
+            )}
           />
         )}
 

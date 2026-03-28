@@ -1,20 +1,20 @@
-import { Colors, type ThemeColors } from "@/constants/Colors";
+import { type ThemeColors } from "@/constants/Colors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    Text,
-    TextInput,
-    useColorScheme,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
@@ -81,13 +81,17 @@ function Field({
             color: C.textPrimary,
           }}
         />
-        <Pressable onPress={() => setVisible((v) => !v)} style={{ padding: 4 }}>
+        <TouchableOpacity
+          onPress={() => setVisible((v) => !v)}
+          activeOpacity={0.7}
+          style={{ padding: 4 }}
+        >
           <Ionicons
             name={visible ? "eye-off-outline" : "eye-outline"}
             size={18}
             color={C.textTertiary}
           />
-        </Pressable>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -97,10 +101,8 @@ function Field({
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme] as ThemeColors;
+  const C = useColors();
+  const scheme = useScheme();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -114,9 +116,7 @@ export default function ChangePasswordScreen() {
         [{ text: "Done", onPress: () => router.back() }],
       );
     },
-    onError: (err: Error) => {
-      Alert.alert("Error", err.message);
-    },
+    onError: (err: Error) => Alert.alert("Error", err.message),
   });
 
   const handleSubmit = () => {
@@ -135,15 +135,8 @@ export default function ChangePasswordScreen() {
       Alert.alert("Mismatch", "New password and confirmation do not match.");
       return;
     }
-
     changePassword({
-      variables: {
-        input: {
-          currentPassword,
-          newPassword,
-          confirmPassword,
-        },
-      },
+      variables: { input: { currentPassword, newPassword, confirmPassword } },
     });
   };
 
@@ -159,52 +152,48 @@ export default function ChangePasswordScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {/* ── Header ──────────────────────────────────────────────── */}
           <View
-            style={{
-              paddingHorizontal: 20,
-              paddingTop: 64,
-              paddingBottom: 20,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-            }}
+            style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
           >
-            <Pressable
+            <TouchableOpacity
               onPress={() => router.back()}
-              style={({ pressed }) => ({
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                backgroundColor: C.surface,
-                borderWidth: 1,
-                borderColor: C.border,
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                opacity: pressed ? 0.6 : 1,
-              })}
+                alignSelf: "flex-start",
+                marginBottom: 32,
+              }}
             >
-              <Ionicons name="arrow-back" size={18} color={C.textPrimary} />
-            </Pressable>
-            <View>
+              <Ionicons name="arrow-back" size={16} color={C.accent} />
               <Text
                 style={{
-                  fontSize: 22,
-                  fontWeight: "800",
-                  color: C.textPrimary,
-                  letterSpacing: -0.5,
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.accent,
+                  marginLeft: 4,
                 }}
               >
-                Change Password
+                More
               </Text>
-              <Text
-                style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}
-              >
-                Update your account password
-              </Text>
-            </View>
+            </TouchableOpacity>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                color: C.textPrimary,
+                letterSpacing: -0.5,
+              }}
+            >
+              Change Password
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}
+            >
+              Update your account password
+            </Text>
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
-            {/* ── Fields ────────────────────────────────────────────── */}
             <Field
               label="CURRENT PASSWORD"
               value={currentPassword}
@@ -236,14 +225,13 @@ export default function ChangePasswordScreen() {
                 marginBottom: 24,
                 flexDirection: "row",
                 alignItems: "flex-start",
-                gap: 8,
               }}
             >
               <Ionicons
                 name="information-circle-outline"
                 size={16}
                 color={C.accent}
-                style={{ marginTop: 1 }}
+                style={{ marginTop: 1, marginRight: 8 }}
               />
               <Text
                 style={{
@@ -259,27 +247,28 @@ export default function ChangePasswordScreen() {
             </View>
 
             {/* ── Submit ────────────────────────────────────────────── */}
-            <Pressable
+            <TouchableOpacity
               onPress={handleSubmit}
               disabled={loading}
-              style={({ pressed }) => ({
+              activeOpacity={0.8}
+              style={{
                 backgroundColor: C.accent,
                 borderRadius: 14,
                 paddingVertical: 16,
                 alignItems: "center",
-                opacity: pressed || loading ? 0.7 : 1,
-              })}
+                opacity: loading ? 0.7 : 1,
+              }}
             >
               <Text
                 style={{
                   fontSize: 15,
                   fontWeight: "700",
-                  color: "#0c0c0c",
+                  color: scheme === "dark" ? "#0c0c0c" : "#ffffff",
                 }}
               >
                 {loading ? "Updating…" : "Update Password"}
               </Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

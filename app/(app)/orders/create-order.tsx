@@ -9,21 +9,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-// ─── Queries ──────────────────────────────────────────────────────────────────
+// ─── Queries / Mutations ──────────────────────────────────────────────────────
 
 const LIST_PRODUCTS_SIMPLE = gql`
   query ListProductsSimple($filters: ListProductsInput) {
@@ -38,6 +38,17 @@ const LIST_PRODUCTS_SIMPLE = gql`
           color
         }
       }
+    }
+  }
+`;
+
+const CREATE_CUSTOMER = gql`
+  mutation CreateCustomer($input: CreateCustomerInput!) {
+    createCustomer(input: $input) {
+      id
+      name
+      phone
+      instagramHandle
     }
   }
 `;
@@ -101,7 +112,7 @@ function Field({
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
-  keyboardType?: "default" | "decimal-pad";
+  keyboardType?: "default" | "decimal-pad" | "phone-pad";
   C: ThemeColors;
 }) {
   return (
@@ -161,6 +172,11 @@ export default function CreateOrderScreen() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
 
+  // ── Inline new customer state ──────────────────────────────────────────────
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+
   // Product selection state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -168,7 +184,7 @@ export default function CreateOrderScreen() {
   const [itemPrice, setItemPrice] = useState("");
 
   // Queries
-  const { data: customersData } = useQuery<{
+  const { data: customersData, refetch: refetchCustomers } = useQuery<{
     customers: { customers: Customer[] };
   }>(LIST_CUSTOMERS, {
     variables: { input: { limit: LIMIT, isActive: true } },
@@ -190,6 +206,22 @@ export default function CreateOrderScreen() {
       Alert.alert("Order Created", `${orderNumber} was created.`, [
         { text: "Done", onPress: () => router.back() },
       ]);
+    },
+    onError: (err) => Alert.alert("Error", err.message),
+  });
+
+  const [createCustomer, { loading: creatingCustomer }] = useMutation<{
+    createCustomer: Customer;
+  }>(CREATE_CUSTOMER, {
+    onCompleted: async (data) => {
+      const c = data.createCustomer;
+      await refetchCustomers();
+      setCustomerId(c.id);
+      setCustomerName(c.name);
+      setShowNewCustomerForm(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setCustomerPickerVisible(false);
     },
     onError: (err) => Alert.alert("Error", err.message),
   });
@@ -220,6 +252,7 @@ export default function CreateOrderScreen() {
     setCustomerName(c.name);
     setCustomerPickerVisible(false);
     setCustomerSearch("");
+    setShowNewCustomerForm(false);
   };
 
   const clearCustomer = () => {
@@ -291,6 +324,28 @@ export default function CreateOrderScreen() {
         },
       },
     });
+  };
+
+  const handleSaveNewCustomer = () => {
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    if (!name) return Alert.alert("Required", "Enter a customer name.");
+    createCustomer({
+      variables: {
+        input: {
+          name,
+          ...(phone ? { phone } : {}),
+        },
+      },
+    });
+  };
+
+  const closeCustomerPicker = () => {
+    setCustomerPickerVisible(false);
+    setCustomerSearch("");
+    setShowNewCustomerForm(false);
+    setNewCustomerName("");
+    setNewCustomerPhone("");
   };
 
   return (
@@ -449,6 +504,7 @@ export default function CreateOrderScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     setCustomerSearch("");
+                    setShowNewCustomerForm(false);
                     setCustomerPickerVisible(true);
                   }}
                   activeOpacity={0.7}
@@ -680,13 +736,14 @@ export default function CreateOrderScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── Customer Picker Modal ──────────────────────────────────── */}
+      {/* ── Customer Picker Modal ──────────────────────────────────────── */}
       <Modal
         visible={customerPickerVisible}
         animationType="slide"
         presentationStyle="pageSheet"
       >
         <View style={{ flex: 1, backgroundColor: C.background }}>
+          {/* Header */}
           <View
             style={{
               flexDirection: "row",
@@ -699,16 +756,10 @@ export default function CreateOrderScreen() {
               borderBottomColor: C.border,
             }}
           >
-            <TouchableOpacity
-              onPress={() => setCustomerPickerVisible(false)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={closeCustomerPicker} activeOpacity={0.7}>
+              {/* ← fix: was C.textSecondary, now C.accent */}
               <Text
-                style={{
-                  fontSize: 15,
-                  color: C.textSecondary,
-                  fontWeight: "500",
-                }}
+                style={{ fontSize: 15, color: C.accent, fontWeight: "500" }}
               >
                 Cancel
               </Text>
@@ -716,84 +767,149 @@ export default function CreateOrderScreen() {
             <Text
               style={{ fontSize: 16, fontWeight: "700", color: C.textPrimary }}
             >
-              Select Customer
+              {showNewCustomerForm ? "New Customer" : "Select Customer"}
             </Text>
-            <View style={{ width: 50 }} />
-          </View>
-
-          <View style={{ padding: 20, paddingBottom: 10 }}>
-            <TextInput
-              value={customerSearch}
-              onChangeText={setCustomerSearch}
-              placeholder="Search customers…"
-              placeholderTextColor={C.textTertiary}
-              autoCapitalize="none"
-              style={{
-                backgroundColor: C.surface,
-                borderWidth: 1,
-                borderColor: C.border,
-                borderRadius: 10,
-                paddingVertical: 11,
-                paddingHorizontal: 14,
-                fontSize: 14,
-                color: C.textPrimary,
+            <TouchableOpacity
+              onPress={() => {
+                if (showNewCustomerForm) {
+                  handleSaveNewCustomer();
+                } else {
+                  setShowNewCustomerForm(true);
+                  setCustomerSearch("");
+                }
               }}
-            />
+              activeOpacity={0.7}
+            >
+              {creatingCustomer ? (
+                <ActivityIndicator size="small" color={C.accent} />
+              ) : (
+                <Text
+                  style={{ fontSize: 15, color: C.accent, fontWeight: "700" }}
+                >
+                  {showNewCustomerForm ? "Save" : "New"}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
 
-          <FlatList
-            data={filteredCustomers}
-            keyExtractor={(c) => c.id}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-            renderItem={({ item: c }) => (
-              <TouchableOpacity
-                onPress={() => selectCustomer(c)}
-                activeOpacity={0.7}
-                style={{
-                  paddingVertical: 14,
-                  borderBottomWidth: 1,
-                  borderBottomColor: C.border,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: "600",
-                    color: C.textPrimary,
-                  }}
-                >
-                  {c.name}
-                </Text>
-                {(c.phone || c.instagramHandle) && (
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: C.textTertiary,
-                      marginTop: 2,
-                    }}
-                  >
-                    {c.phone ?? `@${c.instagramHandle}`}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
+          {showNewCustomerForm ? (
+            /* ── Inline create customer form ──────────────────────────── */
+            <ScrollView
+              contentContainerStyle={{
+                padding: 20,
+                paddingBottom: 60,
+              }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Field
+                label="Name"
+                value={newCustomerName}
+                onChangeText={setNewCustomerName}
+                placeholder="Full name"
+                C={C}
+              />
+              <Field
+                label="Phone (optional)"
+                value={newCustomerPhone}
+                onChangeText={setNewCustomerPhone}
+                placeholder="+52 33 1234 5678"
+                keyboardType="phone-pad"
+                C={C}
+              />
               <Text
                 style={{
-                  fontSize: 13,
+                  fontSize: 12,
                   color: C.textTertiary,
-                  textAlign: "center",
-                  paddingVertical: 40,
+                  marginTop: 4,
+                  lineHeight: 18,
                 }}
               >
-                No customers found
+                The customer will be saved and automatically selected for this
+                order.
               </Text>
-            }
-          />
+            </ScrollView>
+          ) : (
+            /* ── Customer list ────────────────────────────────────────── */
+            <>
+              <View style={{ padding: 20, paddingBottom: 10 }}>
+                <TextInput
+                  value={customerSearch}
+                  onChangeText={setCustomerSearch}
+                  placeholder="Search customers…"
+                  placeholderTextColor={C.textTertiary}
+                  autoCapitalize="none"
+                  style={{
+                    backgroundColor: C.surface,
+                    borderWidth: 1,
+                    borderColor: C.border,
+                    borderRadius: 10,
+                    paddingVertical: 11,
+                    paddingHorizontal: 14,
+                    fontSize: 14,
+                    color: C.textPrimary,
+                  }}
+                />
+              </View>
+
+              <FlatList
+                data={filteredCustomers}
+                keyExtractor={(c) => c.id}
+                contentContainerStyle={{
+                  paddingHorizontal: 20,
+                  paddingBottom: 40,
+                }}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item: c }) => (
+                  <TouchableOpacity
+                    onPress={() => selectCustomer(c)}
+                    activeOpacity={0.7}
+                    style={{
+                      paddingVertical: 14,
+                      borderBottomWidth: 1,
+                      borderBottomColor: C.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: "600",
+                        color: C.textPrimary,
+                      }}
+                    >
+                      {c.name}
+                    </Text>
+                    {(c.phone || c.instagramHandle) && (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: C.textTertiary,
+                          marginTop: 2,
+                        }}
+                      >
+                        {c.phone ?? `@${c.instagramHandle}`}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: C.textTertiary,
+                      textAlign: "center",
+                      paddingVertical: 40,
+                    }}
+                  >
+                    No customers found
+                  </Text>
+                }
+              />
+            </>
+          )}
         </View>
       </Modal>
 
-      {/* ── Product Picker Modal ───────────────────────────────────── */}
+      {/* ── Product Picker Modal ───────────────────────────────────────── */}
       <Modal
         visible={productPickerVisible}
         animationType="slide"
@@ -817,11 +933,7 @@ export default function CreateOrderScreen() {
               activeOpacity={0.7}
             >
               <Text
-                style={{
-                  fontSize: 15,
-                  color: C.textSecondary,
-                  fontWeight: "500",
-                }}
+                style={{ fontSize: 15, color: C.accent, fontWeight: "500" }}
               >
                 Cancel
               </Text>

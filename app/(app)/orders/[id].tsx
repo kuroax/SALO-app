@@ -1,16 +1,15 @@
 import { type ThemeColors } from "@/constants/Colors";
 import {
-  ADD_ORDER_NOTE,
   CANCEL_ORDER,
   UPDATE_ORDER_STATUS,
   UPDATE_PAYMENT_STATUS,
 } from "@/lib/graphql/mutations/order.mutations";
 import { GET_ORDER } from "@/lib/graphql/queries/order.queries";
 import { useColors } from "@/lib/hooks/useColors";
+import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,11 +17,32 @@ import {
   ScrollView,
   StatusBar,
   Text,
-  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
+
+// ─── Customer query ───────────────────────────────────────────────────────────
+
+const GET_CUSTOMER_NAME = gql`
+  query GetCustomerName($id: ID!) {
+    customer(id: $id) {
+      id
+      name
+      phone
+      instagramHandle
+      contactChannel
+    }
+  }
+`;
+
+type CustomerBasic = {
+  id: string;
+  name: string;
+  phone: string | null;
+  instagramHandle: string | null;
+  contactChannel: string;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -323,8 +343,6 @@ export default function OrderDetailScreen() {
 
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
 
-  const [noteText, setNoteText] = useState("");
-
   const { data, loading, error } = useQuery<GetOrderData>(GET_ORDER, {
     variables: { orderId },
     skip: !orderId,
@@ -343,14 +361,18 @@ export default function OrderDetailScreen() {
     UPDATE_PAYMENT_STATUS,
     { refetchQueries: refetchOrder },
   );
-  const [addNote, { loading: addingNote }] = useMutation(ADD_ORDER_NOTE, {
-    refetchQueries: refetchOrder,
-    onCompleted: () => setNoteText(""),
-    onError: (err) => Alert.alert("Error", err.message),
-  });
 
-  const isActionLoading =
-    updatingStatus || cancelling || updatingPayment || addingNote;
+  const isActionLoading = updatingStatus || cancelling || updatingPayment;
+
+  // Customer query — must be at top level (hooks rule), skip when no customerId
+  const { data: customerData } = useQuery<{ customer: CustomerBasic }>(
+    GET_CUSTOMER_NAME,
+    {
+      variables: { id: data?.order?.customerId ?? "" },
+      skip: !data?.order?.customerId,
+    },
+  );
+  const customer = customerData?.customer ?? null;
 
   // ── Invalid id ─────────────────────────────────────────────────────────────
   if (!orderId) {
@@ -521,19 +543,6 @@ export default function OrderDetailScreen() {
     ]);
   };
 
-  const handleAddNote = () => {
-    const text = noteText.trim();
-    if (!text) return;
-    addNote({
-      variables: {
-        input: {
-          orderId,
-          note: { message: text, kind: "internal" },
-        },
-      },
-    });
-  };
-
   return (
     <>
       <StatusBar
@@ -541,7 +550,7 @@ export default function OrderDetailScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
@@ -628,7 +637,27 @@ export default function OrderDetailScreen() {
 
           {/* ── Customer ────────────────────────────────────────────── */}
           <Section title="Customer" C={C}>
-            {order.customerId ? (
+            {customer ? (
+              <>
+                <InfoRow label="Name" value={customer.name} C={C} />
+                {customer.phone && (
+                  <InfoRow label="Phone" value={customer.phone} C={C} />
+                )}
+                {customer.instagramHandle && (
+                  <InfoRow
+                    label="Instagram"
+                    value={`@${customer.instagramHandle}`}
+                    C={C}
+                  />
+                )}
+                <InfoRow
+                  label="Channel"
+                  value={customer.contactChannel}
+                  C={C}
+                  last
+                />
+              </>
+            ) : order.customerId ? (
               <InfoRow
                 label="Customer ID"
                 value={order.customerId}
@@ -817,59 +846,6 @@ export default function OrderDetailScreen() {
                 );
               })
             )}
-
-            {/* Add note input */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: 12,
-                borderTopWidth: 1,
-                borderTopColor: C.border,
-              }}
-            >
-              <TextInput
-                value={noteText}
-                onChangeText={setNoteText}
-                placeholder="Add a note…"
-                placeholderTextColor={C.textTertiary}
-                autoCapitalize="sentences"
-                multiline
-                style={{
-                  flex: 1,
-                  backgroundColor: C.background,
-                  borderWidth: 1,
-                  borderColor: C.border,
-                  borderRadius: 10,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  fontSize: 13,
-                  color: C.textPrimary,
-                  maxHeight: 80,
-                  marginRight: 8,
-                }}
-              />
-              <TouchableOpacity
-                onPress={handleAddNote}
-                disabled={addingNote || !noteText.trim()}
-                activeOpacity={0.7}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: C.accent,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: addingNote || !noteText.trim() ? 0.4 : 1,
-                }}
-              >
-                {addingNote ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="send" size={18} color="#fff" />
-                )}
-              </TouchableOpacity>
-            </View>
           </Section>
 
           {/* ── Actions ─────────────────────────────────────────────── */}
