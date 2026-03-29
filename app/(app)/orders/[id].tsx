@@ -131,11 +131,16 @@ const NOTE_KIND_LABELS: Record<NoteKind, string> = {
   customer_message: "Customer",
 };
 
-const NOTE_KIND_COLORS: Record<NoteKind, string> = {
-  internal: "#6366f1",
-  system: "#9a9284",
-  customer_message: "#3b82f6",
-};
+function getNoteKindColor(kind: NoteKind, C: ThemeColors): string {
+  switch (kind) {
+    case "internal":
+      return C.accent; // follows user's chosen accent color
+    case "system":
+      return C.textTertiary; // neutral muted, adapts to dark/light
+    case "customer_message":
+      return "#3b82f6"; // fixed blue — represents the customer
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -793,7 +798,7 @@ export default function OrderDetailScreen() {
               </View>
             ) : (
               [...order.notes].reverse().map((note, index, arr) => {
-                const noteColor = NOTE_KIND_COLORS[note.kind];
+                const noteColor = getNoteKindColor(note.kind, C);
                 return (
                   <View
                     key={`${note.createdAt}-${note.kind}`}
