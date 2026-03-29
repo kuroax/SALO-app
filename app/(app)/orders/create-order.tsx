@@ -326,14 +326,24 @@ export default function CreateOrderScreen() {
     });
   };
 
+  const normalizePhone = (raw: string): string => {
+    const cleaned = raw.replace(/[^\d+]/g, "");
+    if (cleaned.length > 0 && !cleaned.startsWith("+")) {
+      return `+52${cleaned}`;
+    }
+    return cleaned;
+  };
+
   const handleSaveNewCustomer = () => {
     const name = newCustomerName.trim();
-    const phone = newCustomerPhone.trim();
+    const rawPhone = newCustomerPhone.trim();
     if (!name) return Alert.alert("Required", "Enter a customer name.");
+    const phone = rawPhone ? normalizePhone(rawPhone) : undefined;
     createCustomer({
       variables: {
         input: {
           name,
+          contactChannel: channel === "manual" ? "whatsapp" : channel,
           ...(phone ? { phone } : {}),
         },
       },

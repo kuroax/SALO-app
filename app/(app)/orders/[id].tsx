@@ -136,7 +136,7 @@ function getNoteKindColor(kind: NoteKind, C: ThemeColors): string {
     case "internal":
       return C.accent; // follows user's chosen accent color
     case "system":
-      return C.textTertiary; // neutral muted, adapts to dark/light
+      return C.accent;
     case "customer_message":
       return "#3b82f6"; // fixed blue — represents the customer
   }
