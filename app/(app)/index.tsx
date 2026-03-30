@@ -3,12 +3,12 @@ import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
+import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -16,6 +16,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+// ─── Customer names query ─────────────────────────────────────────────────────
+
+const LIST_CUSTOMER_NAMES = gql`
+  query ListCustomerNamesDashboard {
+    customers(input: { limit: 500, isActive: true }) {
+      customers {
+        id
+        name
+      }
+    }
+  }
+`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +38,7 @@ type Order = {
   status: string;
   total: number;
   createdAt: string;
+  customerId: string | null;
 };
 
 type ListOrdersData = { orders: Order[] };
@@ -42,9 +56,19 @@ function isToday(isoString: string): boolean {
   );
 }
 
+function isThisMonth(isoString: string): boolean {
+  const date = new Date(isoString);
+  const today = new Date();
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth()
+  );
+}
+
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
+  maximumFractionDigits: 0,
 });
 
 function getStatusColor(status: string, C: ThemeColors): string {
@@ -140,13 +164,7 @@ function StatCard({
         {label}
       </Text>
 
-      <Text
-        style={{
-          fontSize: 11,
-          color: C.textTertiary,
-          marginTop: 2,
-        }}
-      >
+      <Text style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
         {subtitle}
       </Text>
     </TouchableOpacity>
@@ -187,11 +205,11 @@ function SectionHeader({
         {title}
       </Text>
       {action && onAction && (
-        <Pressable onPress={onAction}>
+        <TouchableOpacity onPress={onAction} activeOpacity={0.7}>
           <Text style={{ fontSize: 12, fontWeight: "600", color: C.accent }}>
             {action}
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -199,7 +217,15 @@ function SectionHeader({
 
 // ─── Order Row ────────────────────────────────────────────────────────────────
 
-function OrderRow({ order, C }: { order: Order; C: ThemeColors }) {
+function OrderRow({
+  order,
+  customerName,
+  C,
+}: {
+  order: Order;
+  customerName: string | null;
+  C: ThemeColors;
+}) {
   const router = useRouter();
   const statusColor = getStatusColor(order.status, C);
 
@@ -241,13 +267,13 @@ function OrderRow({ order, C }: { order: Order; C: ThemeColors }) {
         <Text
           style={{
             fontSize: 11,
-            color: statusColor,
+            color: customerName ? C.textSecondary : statusColor,
             marginTop: 2,
             fontWeight: "500",
-            textTransform: "capitalize",
+            textTransform: customerName ? "none" : "capitalize",
           }}
         >
-          {order.status}
+          {customerName ?? order.status}
         </Text>
       </View>
 
@@ -346,15 +372,37 @@ export default function DashboardScreen() {
     refetch: refetchLowStock,
   } = useQuery<LowStockData>(GET_LOW_STOCK);
 
+  const { data: customerNamesData, refetch: refetchCustomers } = useQuery<{
+    customers: { customers: { id: string; name: string }[] };
+  }>(LIST_CUSTOMER_NAMES);
+
+  const customerNameMap = new Map(
+    (customerNamesData?.customers.customers ?? []).map((c) => [c.id, c.name]),
+  );
+
   const pendingCount = pendingData?.orders.length ?? 0;
-  const todayCount =
-    recentData?.orders.filter((o) => isToday(o.createdAt)).length ?? 0;
+  const todayOrders =
+    recentData?.orders.filter((o) => isToday(o.createdAt)) ?? [];
+  const todayCount = todayOrders.length;
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
   const lowStockCount = lowStockData?.lowStock.length ?? 0;
+
+  // Revenue this month — from all recent orders (last 20 covers most boutique volumes)
+  const monthRevenue =
+    recentData?.orders
+      .filter((o) => isThisMonth(o.createdAt))
+      .reduce((sum, o) => sum + o.total, 0) ?? 0;
+
   const recentOrders = recentData?.orders.slice(0, 5) ?? [];
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchPending(), refetchRecent(), refetchLowStock()]);
+    await Promise.all([
+      refetchPending(),
+      refetchRecent(),
+      refetchLowStock(),
+      refetchCustomers(),
+    ]);
     setRefreshing(false);
   };
 
@@ -377,7 +425,7 @@ export default function DashboardScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -416,11 +464,12 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
-          {/* Logout — subtle icon button */}
-          <Pressable
+          {/* Logout */}
+          <TouchableOpacity
             onPress={handleLogout}
             disabled={isLoggingOut}
-            style={({ pressed }) => ({
+            activeOpacity={0.7}
+            style={{
               width: 38,
               height: 38,
               borderRadius: 10,
@@ -429,15 +478,15 @@ export default function DashboardScreen() {
               borderColor: C.border,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed || isLoggingOut ? 0.5 : 1,
-            })}
+              opacity: isLoggingOut ? 0.5 : 1,
+            }}
           >
             <Ionicons
               name="log-out-outline"
               size={18}
               color={C.textSecondary}
             />
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
         <View style={{ paddingHorizontal: 20 }}>
@@ -461,7 +510,11 @@ export default function DashboardScreen() {
             <StatCard
               label="Today"
               value={todayCount}
-              subtitle="Orders placed today"
+              subtitle={
+                todayCount > 0
+                  ? currencyFormatter.format(todayRevenue)
+                  : "No orders yet"
+              }
               accent={C.today}
               bg={C.todayBg}
               icon="today-outline"
@@ -471,15 +524,13 @@ export default function DashboardScreen() {
             />
           </View>
 
-          {/* Row 2: Low Stock — full width */}
-          <View style={{ marginBottom: 28 }}>
+          {/* Row 2: Low Stock + Revenue this month */}
+          <View style={{ flexDirection: "row", marginBottom: 28 }}>
             <StatCard
-              label="Low Stock Alerts"
+              label="Low Stock"
               value={lowStockCount}
               subtitle={
-                lowStockCount === 0
-                  ? "All variants healthy"
-                  : "Variants below threshold"
+                lowStockCount === 0 ? "All variants healthy" : "Below threshold"
               }
               accent={lowStockCount > 0 ? C.alert : C.success}
               bg={lowStockCount > 0 ? C.alertBg : C.successBg}
@@ -490,6 +541,18 @@ export default function DashboardScreen() {
               }
               loading={lowStockLoading}
               onPress={() => router.navigate("/inventory")}
+              C={C}
+            />
+            <View style={{ width: 10 }} />
+            <StatCard
+              label="This Month"
+              value={currencyFormatter.format(monthRevenue)}
+              subtitle="Revenue"
+              accent={C.accent}
+              bg={C.accentMuted}
+              icon="trending-up-outline"
+              loading={recentLoading}
+              onPress={() => router.navigate("/orders")}
               C={C}
             />
           </View>
@@ -520,7 +583,7 @@ export default function DashboardScreen() {
           </View>
 
           {/* ── Recent Orders ──────────────────────────────────────────── */}
-          {recentOrders.length > 0 && (
+          {recentOrders.length > 0 ? (
             <>
               <SectionHeader
                 title="Recent Orders"
@@ -529,9 +592,37 @@ export default function DashboardScreen() {
                 C={C}
               />
               {recentOrders.map((order) => (
-                <OrderRow key={order.id} order={order} C={C} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  customerName={
+                    order.customerId
+                      ? (customerNameMap.get(order.customerId) ?? null)
+                      : null
+                  }
+                  C={C}
+                />
               ))}
             </>
+          ) : (
+            !recentLoading && (
+              <View
+                style={{
+                  alignItems: "center",
+                  paddingVertical: 40,
+                }}
+              >
+                <Ionicons
+                  name="receipt-outline"
+                  size={32}
+                  color={C.textTertiary}
+                  style={{ marginBottom: 8 }}
+                />
+                <Text style={{ fontSize: 13, color: C.textTertiary }}>
+                  No orders yet
+                </Text>
+              </View>
+            )
           )}
         </View>
       </ScrollView>

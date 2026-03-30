@@ -392,9 +392,14 @@ export default function OrdersScreen() {
   const orders: Order[] = data?.orders ?? [];
 
   const filteredOrders = searchQuery.trim()
-    ? orders.filter((o) =>
-        o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? orders.filter((o) => {
+        const q = searchQuery.toLowerCase();
+        const matchesNumber = o.orderNumber.toLowerCase().includes(q);
+        const matchesCustomer = o.customerId
+          ? (customerNameMap.get(o.customerId) ?? "").toLowerCase().includes(q)
+          : false;
+        return matchesNumber || matchesCustomer;
+      })
     : orders;
 
   const handleRefresh = async () => {
@@ -475,7 +480,7 @@ export default function OrdersScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search by order number…"
+              placeholder="Search by order number or customer…"
               placeholderTextColor={C.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
