@@ -60,9 +60,10 @@ module.exports = {
     // Extra values accessible via Constants.expoConfig.extra at runtime
     extra: {
       appEnv: process.env.EXPO_PUBLIC_APP_ENV ?? "development",
-      apiUrl: process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api/graphql",
+      apiUrl:
+        process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api/graphql",
       eas: {
-        projectId: "YOUR_EAS_PROJECT_ID", // fill after: eas init
+        projectId: "d3cc25f9-590c-4522-893b-22c8fad80c45",
       },
     },
   },
