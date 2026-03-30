@@ -1,12 +1,23 @@
-import { Platform } from "react-native";
+// constants/Config.ts
+// Reads environment from EXPO_PUBLIC_ variables set in .env.development
+// or .env.production. No hardcoded URLs, no platform-specific hacks.
+//
+// In development:  points to local backend (localhost:4000)
+// In production:   points to Railway backend
+//
+// If the variable is missing, we throw at startup rather than silently
+// making requests to undefined — fail loud, fail fast.
 
-// On iOS simulator, localhost resolves to the host machine correctly.
-// On a physical device or Android emulator, use your machine's LAN IP instead.
-// TODO: replace with deployed backend URL for production builds.
-const DEV_HOST = Platform.OS === "ios" ? "localhost" : "10.0.2.2";
+const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+
+if (!apiUrl) {
+  throw new Error(
+    "[Config] EXPO_PUBLIC_API_URL is not set.\n" +
+    "Create a .env.development file from .env.example and restart Expo.",
+  );
+}
 
 export const Config = {
-  API_URL: __DEV__
-    ? `http://${DEV_HOST}:4000/api/graphql`
-    : "https://your-production-url.com/api/graphql",
+  API_URL: apiUrl,
+  IS_DEV: process.env.EXPO_PUBLIC_APP_ENV !== "production",
 } as const;
