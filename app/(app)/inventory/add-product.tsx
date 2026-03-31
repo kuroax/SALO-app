@@ -390,14 +390,14 @@ export default function AddProductScreen() {
                       <Ionicons
                         name="pencil"
                         size={12}
-                        color="#fff"
+                        color={C.background}
                         style={{ marginRight: 4 }}
                       />
                       <Text
                         style={{
                           fontSize: 11,
                           fontWeight: "700",
-                          color: "#fff",
+                          color: C.background,
                         }}
                       >
                         Change
@@ -715,7 +715,7 @@ export default function AddProductScreen() {
                             <Text
                               style={{
                                 fontSize: 16,
-                                color: "#fff",
+                                color: C.background,
                                 lineHeight: 20,
                               }}
                             >
@@ -749,7 +749,7 @@ export default function AddProductScreen() {
               {isSubmitting && (
                 <ActivityIndicator
                   size="small"
-                  color="#fff"
+                  color={C.background}
                   style={{ marginRight: 8 }}
                 />
               )}
@@ -757,7 +757,7 @@ export default function AddProductScreen() {
                 style={{
                   fontSize: 15,
                   fontWeight: "700",
-                  color: scheme === "dark" ? "#0c0c0c" : "#ffffff",
+                  color: C.background,
                 }}
               >
                 {uploading
