@@ -35,9 +35,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "YOUR_APPLE_ID@email.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+        "appleId": "thousand-tales@hotmail.com",
+        "ascAppId": "6761441051",
+        "appleTeamId": "BNHBGHDF3H"
       }
     }
   }
