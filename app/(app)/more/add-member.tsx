@@ -126,6 +126,7 @@ export default function AddMemberScreen() {
   const [role, setRole] = useState<RoleValue>("sales");
 
   const [register, { loading }] = useMutation(REGISTER_USER, {
+    refetchQueries: ["ListUsers"],
     onCompleted: () => {
       Alert.alert(
         "Member added",
@@ -133,8 +134,21 @@ export default function AddMemberScreen() {
         [{ text: "Done", onPress: () => router.back() }],
       );
     },
-    onError: (err) => Alert.alert("Error", err.message),
+    onError: (err) =>
+      Alert.alert("Could not create member", parseError(err.message)),
   });
+
+  const parseError = (message: string): string => {
+    try {
+      const parsed = JSON.parse(message);
+      if (Array.isArray(parsed)) {
+        return parsed.map((e: { message: string }) => e.message).join("\n");
+      }
+    } catch {
+      // not JSON, return as-is
+    }
+    return message;
+  };
 
   const handleSubmit = () => {
     if (!username.trim() || !password.trim()) {
@@ -143,6 +157,20 @@ export default function AddMemberScreen() {
     }
     if (password.length < 8) {
       Alert.alert("Weak password", "Password must be at least 8 characters.");
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      Alert.alert(
+        "Weak password",
+        "Password must contain at least one uppercase letter.",
+      );
+      return;
+    }
+    if (!/[^a-zA-Z0-9]/.test(password)) {
+      Alert.alert(
+        "Weak password",
+        "Password must contain at least one special character (e.g. !, @, #).",
+      );
       return;
     }
     register({
@@ -227,6 +255,18 @@ export default function AddMemberScreen() {
               secureTextEntry
               C={C}
             />
+            <Text
+              style={{
+                fontSize: 11,
+                color: C.textTertiary,
+                marginTop: -10,
+                marginBottom: 16,
+                lineHeight: 16,
+              }}
+            >
+              Must contain at least 8 characters, one uppercase letter, and one
+              special character (e.g. !, @, #)
+            </Text>
             <Field
               label="EMAIL (optional)"
               value={email}

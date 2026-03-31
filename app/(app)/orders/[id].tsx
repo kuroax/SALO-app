@@ -5,12 +5,11 @@ import {
   UPDATE_PAYMENT_STATUS,
 } from "@/lib/graphql/mutations/order.mutations";
 import { GET_ORDER } from "@/lib/graphql/queries/order.queries";
-import { useColors } from "@/lib/hooks/useColors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   Alert,
@@ -111,20 +110,29 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 
 function getStatusColor(status: OrderStatus, C: ThemeColors): string {
   switch (status) {
-    case "pending":    return C.pending;
-    case "confirmed":  return C.today;
-    case "processing": return C.today;
-    case "shipped":    return C.accent; // no purple token; accent as stand-in
-    case "delivered":  return C.success;
-    case "cancelled":  return C.alert;
+    case "pending":
+      return C.pending;
+    case "confirmed":
+      return C.today;
+    case "processing":
+      return C.today;
+    case "shipped":
+      return C.accent; // no purple token; accent as stand-in
+    case "delivered":
+      return C.success;
+    case "cancelled":
+      return C.alert;
   }
 }
 
 function getPaymentColor(status: PaymentStatus, C: ThemeColors): string {
   switch (status) {
-    case "unpaid":  return C.alert;
-    case "partial": return C.pending;
-    case "paid":    return C.success;
+    case "unpaid":
+      return C.alert;
+    case "partial":
+      return C.pending;
+    case "paid":
+      return C.success;
   }
 }
 
@@ -405,7 +413,10 @@ export default function OrderDetailScreen() {
         >
           Invalid order
         </Text>
-        <TouchableOpacity onPress={() => router.replace("/orders")} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.replace("/orders")}
+          activeOpacity={0.7}
+        >
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Orders
           </Text>
@@ -468,7 +479,10 @@ export default function OrderDetailScreen() {
         >
           {error?.message ?? "This order may have been deleted."}
         </Text>
-        <TouchableOpacity onPress={() => router.replace("/orders")} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.replace("/orders")}
+          activeOpacity={0.7}
+        >
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Orders
           </Text>
@@ -809,7 +823,7 @@ export default function OrderDetailScreen() {
                 const noteColor = getNoteKindColor(note.kind, C);
                 return (
                   <View
-                    key={`${note.createdAt}-${note.kind}`}
+                    key={`${note.createdAt}-${note.kind}-${index}`}
                     style={{
                       padding: 16,
                       borderBottomWidth: index < arr.length - 1 ? 1 : 0,

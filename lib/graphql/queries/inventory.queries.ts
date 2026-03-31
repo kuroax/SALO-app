@@ -18,6 +18,8 @@ export const GET_LOW_STOCK = gql`
   query GetLowStock {
     lowStock {
       productId
+      size
+      color
     }
   }
 `;
