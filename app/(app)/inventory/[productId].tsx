@@ -364,7 +364,7 @@ function VariantRow({
             style={{
               fontSize: 18,
               fontWeight: "600",
-              color: "#fff",
+              color: C.background,
               lineHeight: 22,
             }}
           >
@@ -602,7 +602,7 @@ export default function ProductDetailScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────── */}
         <View
@@ -978,11 +978,11 @@ export default function ProductDetailScreen() {
                     <Ionicons
                       name="pencil"
                       size={11}
-                      color="#fff"
+                      color={C.background}
                       style={{ marginRight: 3 }}
                     />
                     <Text
-                      style={{ fontSize: 11, fontWeight: "700", color: "#fff" }}
+                      style={{ fontSize: 11, fontWeight: "700", color: C.background }}
                     >
                       Change
                     </Text>

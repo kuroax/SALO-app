@@ -1,11 +1,8 @@
-import { Colors } from "@/constants/Colors";
+import { useColors } from "@/lib/hooks/useColors";
 import { Stack } from "expo-router";
-import { useColorScheme } from "react-native";
 
 export default function MoreLayout() {
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
-  const C = Colors[scheme];
+  const C = useColors();
 
   return (
     <Stack

@@ -1,10 +1,9 @@
+import { useColors } from "@/lib/hooks/useColors";
 import { Text, View } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 // Status values mirror backend enums exactly.
-// Order statuses from ORDER_STATUSES constant.
-// Payment statuses from PAYMENT_STATUSES constant.
 type OrderStatus =
   | "pending"
   | "confirmed"
@@ -41,79 +40,70 @@ type BadgeProps = StatusBadgeProps | CustomBadgeProps;
 // ─── Status maps ──────────────────────────────────────────────────────────────
 
 const statusLabels: Record<BadgeStatus, string> = {
-  // Order statuses
-  pending: "Pending",
-  confirmed: "Confirmed",
+  pending:    "Pending",
+  confirmed:  "Confirmed",
   processing: "Processing",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  // Payment statuses
-  unpaid: "Unpaid",
-  partial: "Partial",
-  paid: "Paid",
+  shipped:    "Shipped",
+  delivered:  "Delivered",
+  cancelled:  "Cancelled",
+  unpaid:     "Unpaid",
+  partial:    "Partial",
+  paid:       "Paid",
 };
 
 const statusColors: Record<BadgeStatus, BadgeColor> = {
-  // Order statuses
-  pending: "amber",
-  confirmed: "blue",
+  pending:    "amber",
+  confirmed:  "blue",
   processing: "indigo",
-  shipped: "purple",
-  delivered: "green",
-  cancelled: "red",
-  // Payment statuses
-  unpaid: "red",
-  partial: "amber",
-  paid: "green",
-};
-
-// ─── Color styles ─────────────────────────────────────────────────────────────
-
-const colorStyles: Record<BadgeColor, { container: string; label: string }> = {
-  amber: {
-    container: "bg-amber-50 border border-amber-200",
-    label: "text-amber-700",
-  },
-  blue: {
-    container: "bg-blue-50 border border-blue-200",
-    label: "text-blue-700",
-  },
-  indigo: {
-    container: "bg-indigo-50 border border-indigo-200",
-    label: "text-indigo-700",
-  },
-  purple: {
-    container: "bg-purple-50 border border-purple-200",
-    label: "text-purple-700",
-  },
-  green: {
-    container: "bg-green-50 border border-green-200",
-    label: "text-green-700",
-  },
-  red: { container: "bg-red-50 border border-red-200", label: "text-red-700" },
-  gray: {
-    container: "bg-gray-100 border border-gray-200",
-    label: "text-gray-600",
-  },
+  shipped:    "purple",  // no purple token — maps to accent below
+  delivered:  "green",
+  cancelled:  "red",
+  unpaid:     "red",
+  partial:    "amber",
+  paid:       "green",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Badge({ status, label, color }: BadgeProps) {
+  const C = useColors();
+
   const resolvedLabel = status ? statusLabels[status] : label;
   const resolvedColor = status ? statusColors[status] : color;
 
-  const { container, label: labelStyle } = colorStyles[resolvedColor];
+  // Map semantic color names to theme tokens.
+  // "purple" (shipped) uses accent as the closest available token.
+  const colorMap: Record<BadgeColor, { bg: string; text: string; border: string }> = {
+    amber:  { bg: C.pendingBg,   text: C.pending,       border: C.pending + "40" },
+    blue:   { bg: C.todayBg,     text: C.today,         border: C.today + "40" },
+    indigo: { bg: C.todayBg,     text: C.today,         border: C.today + "40" },
+    purple: { bg: C.accentMuted, text: C.accent,        border: C.accent + "40" },
+    green:  { bg: C.successBg,   text: C.success,       border: C.success + "40" },
+    red:    { bg: C.alertBg,     text: C.alert,         border: C.alert + "40" },
+    gray:   { bg: C.accentMuted, text: C.textSecondary, border: C.border },
+  };
+
+  const { bg, text, border } = colorMap[resolvedColor];
 
   return (
     <View
-      className={["rounded-lg px-2.5 py-1 self-start", container].join(" ")}
+      style={{
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        alignSelf: "flex-start",
+        backgroundColor: bg,
+        borderWidth: 1,
+        borderColor: border,
+      }}
     >
       <Text
-        className={["text-xs font-semibold tracking-wide", labelStyle].join(
-          " ",
-        )}
+        style={{
+          fontSize: 12,
+          fontWeight: "700",
+          letterSpacing: 0.3,
+          color: text,
+        }}
       >
         {resolvedLabel}
       </Text>

@@ -6,6 +6,7 @@ import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,7 +16,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -78,31 +78,36 @@ function formatDate(isoString: string): string {
   });
 }
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: "#f59e0b",
-  confirmed: "#6366f1",
-  processing: "#3b82f6",
-  shipped: "#8b5cf6",
-  delivered: "#10b981",
-  cancelled: "#ef4444",
-};
+function getStatusColor(status: OrderStatus, C: ThemeColors): string {
+  switch (status) {
+    case "pending":    return C.pending;
+    case "confirmed":  return C.today;
+    case "processing": return C.today;
+    case "shipped":    return C.accent; // no purple token; accent as stand-in
+    case "delivered":  return C.success;
+    case "cancelled":  return C.alert;
+  }
+}
 
-const PAYMENT_COLORS: Record<PaymentStatus, string> = {
-  unpaid: "#ef4444",
-  partial: "#f59e0b",
-  paid: "#10b981",
-};
+function getPaymentColor(status: PaymentStatus, C: ThemeColors): string {
+  switch (status) {
+    case "unpaid":  return C.alert;
+    case "partial": return C.pending;
+    case "paid":    return C.success;
+  }
+}
 
 // ─── Filter chips ─────────────────────────────────────────────────────────────
 
-const FILTERS: { label: string; value: OrderStatus | "all"; color: string }[] =
-  [
-    { label: "All", value: "all", color: "#9a9284" },
-    { label: "Pending", value: "pending", color: "#f59e0b" },
-    { label: "Confirmed", value: "confirmed", color: "#6366f1" },
-    { label: "Shipped", value: "shipped", color: "#8b5cf6" },
-    { label: "Delivered", value: "delivered", color: "#10b981" },
-  ];
+const FILTER_VALUES: (OrderStatus | "all")[] = [
+  "all", "pending", "confirmed", "shipped", "delivered",
+];
+
+const FILTER_LABELS: Record<OrderStatus | "all", string> = {
+  all: "All", pending: "Pending", confirmed: "Confirmed",
+  processing: "Processing", shipped: "Shipped",
+  delivered: "Delivered", cancelled: "Cancelled",
+};
 
 function FilterChip({
   label,
@@ -157,8 +162,8 @@ function OrderCard({
   C: ThemeColors;
 }) {
   const router = useRouter();
-  const statusColor = STATUS_COLORS[order.status];
-  const paymentColor = PAYMENT_COLORS[order.paymentStatus];
+  const statusColor = getStatusColor(order.status, C);
+  const paymentColor = getPaymentColor(order.paymentStatus, C);
   const itemCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
@@ -359,8 +364,7 @@ function ErrorState({ message, C }: { message: string; C: ThemeColors }) {
 const LIMIT = 20;
 
 export default function OrdersScreen() {
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const scheme = useScheme();
   const C = useColors();
   const router = useRouter(); // ← fix: router now in scope for the FAB
 
@@ -516,16 +520,20 @@ export default function OrdersScreen() {
             paddingVertical: 10,
           }}
         >
-          {FILTERS.map((f) => (
-            <FilterChip
-              key={f.value}
-              label={f.label}
-              active={activeFilter === f.value}
-              color={f.color}
-              onPress={() => setActiveFilter(f.value)}
-              C={C}
-            />
-          ))}
+          {FILTER_VALUES.map((v) => {
+            const filterColor =
+              v === "all" ? C.textSecondary : getStatusColor(v, C);
+            return (
+              <FilterChip
+                key={v}
+                label={FILTER_LABELS[v]}
+                active={activeFilter === v}
+                color={filterColor}
+                onPress={() => setActiveFilter(v)}
+                C={C}
+              />
+            );
+          })}
         </ScrollView>
 
         {/* ── Error ─────────────────────────────────────────────────────── */}
@@ -585,7 +593,7 @@ export default function OrdersScreen() {
             elevation: 6,
           }}
         >
-          <Ionicons name="add" size={28} color="#fff" />
+          <Ionicons name="add" size={28} color={C.background} />
         </TouchableOpacity>
       </View>
     </>

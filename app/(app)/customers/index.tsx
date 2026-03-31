@@ -13,7 +13,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -50,12 +49,14 @@ const CHANNEL_ICONS: Record<
   both: "globe-outline",
 };
 
-const TAG_COLORS: Record<CustomerTag, string> = {
-  vip: "#f59e0b",
-  wholesale: "#6366f1",
-  problematic: "#ef4444",
-  regular: "#9a9284",
-};
+function getTagColor(tag: CustomerTag, C: ThemeColors): string {
+  switch (tag) {
+    case "vip":         return C.pending;
+    case "wholesale":   return C.today;
+    case "problematic": return C.alert;
+    case "regular":     return C.textSecondary;
+  }
+}
 
 const TAG_LABELS: Record<CustomerTag, string> = {
   vip: "VIP",
@@ -95,11 +96,13 @@ function Avatar({ name, color }: { name: string; color: string }) {
 
 // ─── Customer Row ─────────────────────────────────────────────────────────────
 
-const CHANNEL_COLORS: Record<ContactChannel, string> = {
-  whatsapp: "#22c55e",
-  instagram: "#a855f7",
-  both: "#3b82f6",
-};
+function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
+  switch (channel) {
+    case "whatsapp":  return C.success;
+    case "instagram": return C.accent; // no purple token; accent as stand-in
+    case "both":      return C.today;
+  }
+}
 
 function CustomerRow({
   customer,
@@ -112,7 +115,7 @@ function CustomerRow({
   isLast: boolean;
   C: ThemeColors;
 }) {
-  const channelColor = CHANNEL_COLORS[customer.contactChannel];
+  const channelColor = getChannelColor(customer.contactChannel, C);
   const contact =
     customer.phone ??
     (customer.instagramHandle ? `@${customer.instagramHandle}` : null);
@@ -159,28 +162,31 @@ function CustomerRow({
         )}
         {customer.tags.length > 0 && (
           <View style={{ flexDirection: "row", marginTop: 5 }}>
-            {customer.tags.map((tag) => (
-              <View
-                key={tag}
-                style={{
-                  backgroundColor: TAG_COLORS[tag] + "20",
-                  borderRadius: 4,
-                  paddingHorizontal: 6,
-                  paddingVertical: 2,
-                  marginRight: 5,
-                }}
-              >
-                <Text
+            {customer.tags.map((tag) => {
+              const tagColor = getTagColor(tag, C);
+              return (
+                <View
+                  key={tag}
                   style={{
-                    fontSize: 10,
-                    fontWeight: "700",
-                    color: TAG_COLORS[tag],
+                    backgroundColor: tagColor + "20",
+                    borderRadius: 4,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    marginRight: 5,
                   }}
                 >
-                  {TAG_LABELS[tag]}
-                </Text>
-              </View>
-            ))}
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "700",
+                      color: tagColor,
+                    }}
+                  >
+                    {TAG_LABELS[tag]}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         )}
       </View>
@@ -277,8 +283,6 @@ export default function CustomersScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
-  const raw = useColorScheme();
-  const _scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

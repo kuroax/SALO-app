@@ -4,7 +4,7 @@ import {
   UPDATE_CUSTOMER,
 } from "@/lib/graphql/mutations/customer.mutations";
 import { GET_CUSTOMER, LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
-import { useColors } from "@/lib/hooks/useColors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -13,13 +13,11 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  Pressable,
   ScrollView,
   StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -52,32 +50,36 @@ const CHANNELS: { value: ContactChannel; label: string }[] = [
   { value: "both", label: "Both" },
 ];
 
-const ALL_TAGS: { value: CustomerTag; label: string; color: string }[] = [
-  { value: "vip", label: "VIP", color: "#f59e0b" },
-  { value: "wholesale", label: "Wholesale", color: "#6366f1" },
-  { value: "problematic", label: "Problematic", color: "#ef4444" },
-  { value: "regular", label: "Regular", color: "#9a9284" },
+const ALL_TAGS: { value: CustomerTag; label: string }[] = [
+  { value: "vip",         label: "VIP" },
+  { value: "wholesale",   label: "Wholesale" },
+  { value: "problematic", label: "Problematic" },
+  { value: "regular",     label: "Regular" },
 ];
 
-// ─── Style maps ───────────────────────────────────────────────────────────────
+// ─── Style helpers ────────────────────────────────────────────────────────────
 
-const CHANNEL_COLORS: Record<ContactChannel, string> = {
-  whatsapp: "#22c55e",
-  instagram: "#a855f7",
-  both: "#3b82f6",
-};
+function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
+  switch (channel) {
+    case "whatsapp":  return C.success;
+    case "instagram": return C.accent; // no purple token; accent as stand-in
+    case "both":      return C.today;
+  }
+}
+
+function getTagColor(tag: CustomerTag, C: ThemeColors): string {
+  switch (tag) {
+    case "vip":         return C.pending;
+    case "wholesale":   return C.today;
+    case "problematic": return C.alert;
+    case "regular":     return C.textSecondary;
+  }
+}
 
 const CHANNEL_LABELS: Record<ContactChannel, string> = {
   whatsapp: "WhatsApp",
   instagram: "Instagram",
   both: "Both",
-};
-
-const TAG_COLORS: Record<CustomerTag, string> = {
-  vip: "#f59e0b",
-  wholesale: "#6366f1",
-  problematic: "#ef4444",
-  regular: "#9a9284",
 };
 
 const TAG_LABELS: Record<CustomerTag, string> = {
@@ -86,6 +88,14 @@ const TAG_LABELS: Record<CustomerTag, string> = {
   problematic: "Problematic",
   regular: "Regular",
 };
+
+function normalizePhone(raw: string): string {
+  const cleaned = raw.replace(/[^\d+]/g, "");
+  if (cleaned.length > 0 && !cleaned.startsWith("+")) {
+    return `+52${cleaned}`;
+  }
+  return cleaned;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -263,8 +273,7 @@ export default function CustomerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const C = useColors();
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const scheme = useScheme();
 
   const customerId = typeof id === "string" && id.length > 0 ? id : null;
 
@@ -339,7 +348,7 @@ export default function CustomerDetailScreen() {
         id: customerId,
         input: {
           name: editName.trim(),
-          phone: editPhone.trim() || null,
+          phone: editPhone.trim() ? normalizePhone(editPhone.trim()) : null,
           instagramHandle: editInstagram.trim() || null,
           contactChannel: editChannel,
           tags: editTags,
@@ -388,11 +397,11 @@ export default function CustomerDetailScreen() {
         >
           Invalid customer
         </Text>
-        <Pressable onPress={() => router.replace("/customers")}>
+        <TouchableOpacity onPress={() => router.replace("/customers")} activeOpacity={0.7}>
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Customers
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -451,17 +460,17 @@ export default function CustomerDetailScreen() {
         >
           {error?.message ?? "This customer may no longer exist."}
         </Text>
-        <Pressable onPress={() => router.replace("/customers")}>
+        <TouchableOpacity onPress={() => router.replace("/customers")} activeOpacity={0.7}>
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Customers
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     );
   }
 
   const customer = data.customer;
-  const channelColor = CHANNEL_COLORS[customer.contactChannel];
+  const channelColor = getChannelColor(customer.contactChannel, C);
 
   return (
     <>
@@ -657,7 +666,7 @@ export default function CustomerDetailScreen() {
               >
                 {customer.tags.map((tag) => (
                   <View key={tag} style={{ marginRight: 8, marginBottom: 6 }}>
-                    <Pill label={TAG_LABELS[tag]} color={TAG_COLORS[tag]} />
+                    <Pill label={TAG_LABELS[tag]} color={getTagColor(tag, C)} />
                   </View>
                 ))}
               </View>
@@ -849,6 +858,7 @@ export default function CustomerDetailScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                 {ALL_TAGS.map((tag) => {
                   const selected = editTags.includes(tag.value);
+                  const tagColor = getTagColor(tag.value, C);
                   return (
                     <TouchableOpacity
                       key={tag.value}
@@ -858,11 +868,9 @@ export default function CustomerDetailScreen() {
                         paddingHorizontal: 14,
                         paddingVertical: 8,
                         borderRadius: 8,
-                        backgroundColor: selected
-                          ? tag.color + "20"
-                          : C.surface,
+                        backgroundColor: selected ? tagColor + "20" : C.surface,
                         borderWidth: 1,
-                        borderColor: selected ? tag.color : C.border,
+                        borderColor: selected ? tagColor : C.border,
                         marginRight: 8,
                         marginBottom: 8,
                       }}
@@ -871,7 +879,7 @@ export default function CustomerDetailScreen() {
                         style={{
                           fontSize: 13,
                           fontWeight: "600",
-                          color: selected ? tag.color : C.textSecondary,
+                          color: selected ? tagColor : C.textSecondary,
                         }}
                       >
                         {tag.label}

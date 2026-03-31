@@ -1,6 +1,7 @@
 import { Config } from "@/constants/Config";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { Observable } from "@apollo/client";
+import { CombinedGraphQLErrors } from "@apollo/client/errors";
 import { onError } from "@apollo/client/link/error";
 import * as SecureStore from "expo-secure-store";
 
@@ -46,10 +47,14 @@ async function fetchNewAccessToken(): Promise<string | null> {
 // Intercepts UNAUTHENTICATED errors, attempts silent token refresh,
 // then retries the original operation with the new token.
 // If refresh fails, logs the user out and clears auth state.
-export const refreshLink = onError(({ graphQLErrors, operation, forward }) => {
-  const isUnauthenticated = graphQLErrors?.some(
-    (err) => err.extensions?.code === "UNAUTHENTICATED",
-  );
+export const refreshLink = onError(({ error, operation, forward }) => {
+  const isUnauthenticated =
+    CombinedGraphQLErrors.is(error) &&
+    error.errors.some(
+      (err) =>
+        (err.extensions as { code?: string } | undefined)?.code ===
+        "UNAUTHENTICATED",
+    );
 
   if (!isUnauthenticated) return;
 

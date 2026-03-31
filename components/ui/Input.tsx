@@ -1,3 +1,4 @@
+import { useColors } from "@/lib/hooks/useColors";
 import { forwardRef, useEffect, useState } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 import Animated, {
@@ -32,6 +33,7 @@ export const Input = forwardRef<TextInput, InputProps>(
     },
     ref,
   ) => {
+    const C = useColors();
     const [isFocused, setIsFocused] = useState(false);
 
     // 0 = resting, 1 = active (focused or has value)
@@ -59,30 +61,29 @@ export const Input = forwardRef<TextInput, InputProps>(
       ],
     }));
 
-    // Label color: always red when error, otherwise gray → dark on focus.
+    // Label color: always error color when invalid, otherwise tertiary → primary on focus.
     const labelColorStyle = useAnimatedStyle(() => ({
       color: hasError
-        ? "#dc2626"
+        ? C.alert
         : interpolateColor(
             borderProgress.value,
             [0, 1],
-            ["#9ca3af", "#111827"],
+            [C.textTertiary, C.textPrimary],
           ),
     }));
 
-    // Border color: soft red when error, otherwise gray → dark on focus.
+    // Border color: muted error when invalid, otherwise border → primary on focus.
     const borderColorStyle = useAnimatedStyle(() => ({
       borderColor: hasError
-        ? "#fca5a5"
+        ? C.alert + "80"
         : interpolateColor(
             borderProgress.value,
             [0, 1],
-            ["#e5e7eb", "#111827"],
+            [C.border, C.textPrimary],
           ),
     }));
 
     // Handlers trigger state changes — useEffect drives animations.
-    // Consumer handlers are composed via optional chaining.
     const handleFocus: NonNullable<TextInputProps["onFocus"]> = (e) => {
       setIsFocused(true);
       consumerFocus?.(e);
@@ -94,15 +95,28 @@ export const Input = forwardRef<TextInput, InputProps>(
     };
 
     return (
-      <View className="w-full">
+      <View style={{ width: "100%" }}>
         <Animated.View
-          style={borderColorStyle}
-          className="relative rounded-2xl border bg-white px-4 pb-3 pt-5"
+          style={[
+            borderColorStyle,
+            {
+              position: "relative",
+              borderRadius: 16,
+              borderWidth: 1,
+              backgroundColor: C.surface,
+              paddingHorizontal: 16,
+              paddingBottom: 12,
+              paddingTop: 20,
+            },
+          ]}
         >
           {/* Floating label — pointer events disabled so it doesn't block input */}
           <Animated.Text
-            style={[labelAnimatedStyle, labelColorStyle]}
-            className="absolute left-4 top-4 text-base"
+            style={[
+              labelAnimatedStyle,
+              labelColorStyle,
+              { position: "absolute", left: 16, top: 16, fontSize: 16 },
+            ]}
             numberOfLines={1}
             pointerEvents="none"
           >
@@ -115,8 +129,8 @@ export const Input = forwardRef<TextInput, InputProps>(
             onFocus={handleFocus}
             onBlur={handleBlur}
             onChangeText={onChangeText}
-            className="m-0 p-0 text-base text-gray-900"
-            placeholderTextColor="#9ca3af"
+            style={{ margin: 0, padding: 0, fontSize: 16, color: C.textPrimary }}
+            placeholderTextColor={C.textTertiary}
             accessibilityLabel={label}
             accessibilityHint={hasError ? error : undefined}
             {...rest}
@@ -125,7 +139,16 @@ export const Input = forwardRef<TextInput, InputProps>(
 
         {/* Error message */}
         {hasError && (
-          <Text className="ml-1 mt-1.5 text-sm text-red-500">{error}</Text>
+          <Text
+            style={{
+              marginLeft: 4,
+              marginTop: 6,
+              fontSize: 14,
+              color: C.alert,
+            }}
+          >
+            {error}
+          </Text>
         )}
       </View>
     );

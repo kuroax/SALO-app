@@ -1,8 +1,12 @@
+import { useColors } from "@/lib/hooks/useColors";
+import type { ThemeColors } from "@/constants/Colors";
 import {
     ActivityIndicator,
-    Pressable,
     Text,
-    type PressableProps,
+    TouchableOpacity,
+    type TouchableOpacityProps,
+    type ViewStyle,
+    type TextStyle,
 } from "react-native";
 import Animated, {
     useAnimatedStyle,
@@ -17,7 +21,7 @@ type ButtonSize = "sm" | "md" | "lg";
 
 // children is string — this button renders text labels only.
 // For icon+label or icon-only buttons, use IconButton (future component).
-type ButtonProps = Omit<PressableProps, "children"> & {
+type ButtonProps = Omit<TouchableOpacityProps, "children"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
@@ -25,36 +29,43 @@ type ButtonProps = Omit<PressableProps, "children"> & {
   children: string;
 };
 
-// ─── Style maps ───────────────────────────────────────────────────────────────
+// ─── Style helpers ────────────────────────────────────────────────────────────
 
-const containerStyles: Record<ButtonVariant, string> = {
-  primary: "bg-gray-900 border border-gray-900",
-  secondary: "bg-white border border-gray-300",
-  danger: "bg-red-50 border border-red-200",
-  ghost: "bg-transparent border border-transparent",
-};
+function containerStyle(variant: ButtonVariant, C: ThemeColors): ViewStyle {
+  switch (variant) {
+    case "primary":
+      return { backgroundColor: C.accent, borderWidth: 1, borderColor: C.accent };
+    case "secondary":
+      return { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border };
+    case "danger":
+      return { backgroundColor: C.alertBg, borderWidth: 1, borderColor: C.alert + "40" };
+    case "ghost":
+      return { backgroundColor: "transparent", borderWidth: 1, borderColor: "transparent" };
+  }
+}
 
-const labelStyles: Record<ButtonVariant, string> = {
-  primary: "text-white",
-  secondary: "text-gray-900",
-  danger: "text-red-600",
-  ghost: "text-gray-600",
-};
+function labelColor(variant: ButtonVariant, C: ThemeColors): string {
+  switch (variant) {
+    case "primary":   return C.background;
+    case "secondary": return C.textPrimary;
+    case "danger":    return C.alert;
+    case "ghost":     return C.textSecondary;
+  }
+}
 
-const indicatorColors: Record<ButtonVariant, string> = {
-  primary: "#ffffff",
-  secondary: "#111827",
-  danger: "#dc2626",
-  ghost: "#4b5563",
-};
-
-const sizeStyles: Record<ButtonSize, { container: string; label: string }> = {
-  sm: { container: "px-4 py-2 rounded-xl", label: "text-sm font-semibold" },
-  md: {
-    container: "px-5 py-3.5 rounded-2xl",
-    label: "text-base font-semibold",
+const sizeStyleMap: Record<ButtonSize, { container: ViewStyle; label: TextStyle }> = {
+  sm: {
+    container: { paddingHorizontal: 16, paddingVertical: 8,  borderRadius: 12 },
+    label:     { fontSize: 14, fontWeight: "600" },
   },
-  lg: { container: "px-6 py-4 rounded-2xl", label: "text-lg font-semibold" },
+  md: {
+    container: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 16 },
+    label:     { fontSize: 16, fontWeight: "600" },
+  },
+  lg: {
+    container: { paddingHorizontal: 24, paddingVertical: 16, borderRadius: 16 },
+    label:     { fontSize: 18, fontWeight: "600" },
+  },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -71,6 +82,7 @@ export function Button({
   children,
   ...rest
 }: ButtonProps) {
+  const C = useColors();
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -79,20 +91,14 @@ export function Button({
 
   const isDisabled = disabled || loading;
 
-  // Internal handlers compose with consumer-provided handlers.
-  // Animation is skipped when disabled or loading.
-  const handlePressIn = (
-    e: Parameters<NonNullable<PressableProps["onPressIn"]>>[0],
-  ) => {
+  const handlePressIn: NonNullable<TouchableOpacityProps["onPressIn"]> = (e) => {
     if (!isDisabled) {
       scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
     }
     consumerPressIn?.(e);
   };
 
-  const handlePressOut = (
-    e: Parameters<NonNullable<PressableProps["onPressOut"]>>[0],
-  ) => {
+  const handlePressOut: NonNullable<TouchableOpacityProps["onPressOut"]> = (e) => {
     if (!isDisabled) {
       scale.value = withSpring(1, { damping: 15, stiffness: 300 });
     }
@@ -101,31 +107,30 @@ export function Button({
 
   return (
     <Animated.View style={[animatedStyle, fullWidth && { width: "100%" }]}>
-      <Pressable
+      <TouchableOpacity
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={isDisabled}
+        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityState={{ disabled: isDisabled, busy: loading }}
-        className={[
-          "items-center justify-center flex-row",
-          containerStyles[variant],
-          sizeStyles[size].container,
-          isDisabled ? "opacity-50" : "opacity-100",
-        ].join(" ")}
+        style={[
+          { alignItems: "center", justifyContent: "center", flexDirection: "row" },
+          containerStyle(variant, C),
+          sizeStyleMap[size].container,
+          isDisabled && { opacity: 0.5 },
+        ]}
         {...rest}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={indicatorColors[variant]} />
+          <ActivityIndicator size="small" color={labelColor(variant, C)} />
         ) : (
-          <Text
-            className={[sizeStyles[size].label, labelStyles[variant]].join(" ")}
-          >
+          <Text style={[sizeStyleMap[size].label, { color: labelColor(variant, C) }]}>
             {children}
           </Text>
         )}
-      </Pressable>
+      </TouchableOpacity>
     </Animated.View>
   );
 }

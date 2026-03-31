@@ -166,7 +166,7 @@ export default function AddMemberScreen() {
         style={{ flex: 1, backgroundColor: C.background }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
           {/* ── Header ──────────────────────────────────────────────── */}
           <View
             style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
@@ -327,7 +327,7 @@ export default function AddMemberScreen() {
               }}
             >
               <Text
-                style={{ fontSize: 15, fontWeight: "700", color: "#0c0c0c" }}
+                style={{ fontSize: 15, fontWeight: "700", color: C.background }}
               >
                 {loading ? "Creating…" : "Create Member"}
               </Text>

@@ -9,7 +9,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
-  Pressable,
   ScrollView,
   StatusBar,
   Switch,
@@ -60,13 +59,16 @@ const ROLE_LABELS: Record<string, string> = {
   support: "Support",
 };
 
-const ROLE_COLORS: Record<string, string> = {
-  owner: "#f59e0b",
-  admin: "#6366f1",
-  sales: "#10b981",
-  inventory: "#3b82f6",
-  support: "#8b5cf6",
-};
+function getRoleColor(role: string, C: ThemeColors): string {
+  switch (role) {
+    case "owner":     return C.pending;
+    case "admin":     return C.today;
+    case "sales":     return C.success;
+    case "inventory": return C.today;
+    case "support":   return C.accent;
+    default:          return C.textSecondary;
+  }
+}
 
 // ─── Section ──────────────────────────────────────────────────────────────────
 
@@ -127,18 +129,18 @@ function Row({
   last?: boolean;
 }) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       disabled={!onPress}
-      style={({ pressed }) => ({
+      activeOpacity={0.7}
+      style={{
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 14,
         paddingHorizontal: 16,
         borderBottomWidth: last ? 0 : 1,
         borderBottomColor: C.border,
-        opacity: pressed ? 0.7 : 1,
-      })}
+      }}
     >
       <View
         style={{
@@ -171,7 +173,7 @@ function Row({
         (onPress ? (
           <Ionicons name="chevron-forward" size={16} color={C.textTertiary} />
         ) : null)}
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -188,7 +190,7 @@ function TeamMemberRow({
   C: ThemeColors;
   last: boolean;
 }) {
-  const roleColor = ROLE_COLORS[member.role] ?? C.textSecondary;
+  const roleColor = getRoleColor(member.role, C);
   return (
     <View
       style={{
@@ -432,11 +434,11 @@ export default function MoreScreen() {
                         justifyContent: "center",
                         marginRight: 14,
                         borderWidth: selected ? 3 : 0,
-                        borderColor: "#ffffff",
+                        borderColor: C.surface,
                       }}
                     >
                       {selected && (
-                        <Ionicons name="checkmark" size={20} color="#ffffff" />
+                        <Ionicons name="checkmark" size={20} color={C.surface} />
                       )}
                     </TouchableOpacity>
                   );

@@ -84,10 +84,16 @@ type OrderLineItem = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CHANNELS: { value: Channel; label: string }[] = [
-  { value: "manual", label: "Manual" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "instagram", label: "Instagram" },
+  { value: "manual", label: "Manual" },
 ];
+
+// Backend only accepts "whatsapp" | "instagram". "manual" is a UI-only concept
+// that maps to "whatsapp" when persisted.
+function toApiChannel(c: Channel): "whatsapp" | "instagram" {
+  return c === "manual" ? "whatsapp" : c;
+}
 
 const DEFAULT_COLOR = "default";
 
@@ -313,7 +319,7 @@ export default function CreateOrderScreen() {
       variables: {
         input: {
           customerId: customerId || null,
-          channel,
+          channel: toApiChannel(channel),
           items: items.map((i) => ({
             productId: i.productId,
             size: i.size,
@@ -343,7 +349,7 @@ export default function CreateOrderScreen() {
       variables: {
         input: {
           name,
-          contactChannel: channel === "manual" ? "whatsapp" : channel,
+          contactChannel: toApiChannel(channel),
           ...(phone ? { phone } : {}),
         },
       },
@@ -728,7 +734,7 @@ export default function CreateOrderScreen() {
               {creating && (
                 <ActivityIndicator
                   size="small"
-                  color="#fff"
+                  color={C.background}
                   style={{ marginRight: 8 }}
                 />
               )}
@@ -736,7 +742,7 @@ export default function CreateOrderScreen() {
                 style={{
                   fontSize: 15,
                   fontWeight: "700",
-                  color: scheme === "dark" ? "#0c0c0c" : "#ffffff",
+                  color: C.background,
                 }}
               >
                 {creating ? "Creating…" : "Create Order"}

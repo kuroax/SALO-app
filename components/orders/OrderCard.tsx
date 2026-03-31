@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { useColors } from "@/lib/hooks/useColors";
 import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 
@@ -58,10 +59,11 @@ export function OrderCard({
   customerId,
   itemCount,
 }: OrderCardProps) {
+  const C = useColors();
   const router = useRouter();
 
   return (
-    <View className="mb-3">
+    <View style={{ marginBottom: 12 }}>
       <Card
         variant="white"
         padding="md"
@@ -73,34 +75,44 @@ export function OrderCard({
         }
       >
         {/* ── Top row: order number + total ─────────────────────────────── */}
-        <View className="mb-2 flex-row items-center justify-between">
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 8,
+          }}
+        >
           <Text
             numberOfLines={1}
-            className="flex-1 text-sm font-bold text-gray-900"
+            style={{ flex: 1, fontSize: 14, fontWeight: "700", color: C.textPrimary }}
           >
             {orderNumber}
           </Text>
-          <Text className="ml-3 text-base font-bold text-gray-900">
+          <Text style={{ marginLeft: 12, fontSize: 15, fontWeight: "700", color: C.textPrimary }}>
             {formatCurrency(total)}
           </Text>
         </View>
 
         {/* ── Middle row: badges ────────────────────────────────────────── */}
-        <View className="mb-3 flex-row gap-2">
-          <Badge status={status} />
+        <View style={{ flexDirection: "row", marginBottom: 12 }}>
+          <View style={{ marginRight: 8 }}>
+            <Badge status={status} />
+          </View>
           <Badge status={paymentStatus} />
         </View>
 
         {/* ── Bottom row: meta info ─────────────────────────────────────── */}
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xs text-gray-400">
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ fontSize: 12, color: C.textTertiary }}>
             {customerId ? "Customer assigned" : "No customer"}
           </Text>
-          <View className="flex-row items-center gap-3">
-            <Text className="text-xs text-gray-400">
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ fontSize: 12, color: C.textTertiary }}>
               {itemCount} {itemCount === 1 ? "unit" : "units"}
             </Text>
-            <Text className="text-xs text-gray-400">
+            <View style={{ width: 12 }} />
+            <Text style={{ fontSize: 12, color: C.textTertiary }}>
               {formatDate(createdAt)}
             </Text>
           </View>

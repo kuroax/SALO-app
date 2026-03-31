@@ -10,15 +10,14 @@ import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -110,20 +109,24 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: "#f59e0b",
-  confirmed: "#6366f1",
-  processing: "#3b82f6",
-  shipped: "#8b5cf6",
-  delivered: "#10b981",
-  cancelled: "#ef4444",
-};
+function getStatusColor(status: OrderStatus, C: ThemeColors): string {
+  switch (status) {
+    case "pending":    return C.pending;
+    case "confirmed":  return C.today;
+    case "processing": return C.today;
+    case "shipped":    return C.accent; // no purple token; accent as stand-in
+    case "delivered":  return C.success;
+    case "cancelled":  return C.alert;
+  }
+}
 
-const PAYMENT_COLORS: Record<PaymentStatus, string> = {
-  unpaid: "#ef4444",
-  partial: "#f59e0b",
-  paid: "#10b981",
-};
+function getPaymentColor(status: PaymentStatus, C: ThemeColors): string {
+  switch (status) {
+    case "unpaid":  return C.alert;
+    case "partial": return C.pending;
+    case "paid":    return C.success;
+  }
+}
 
 const NOTE_KIND_LABELS: Record<NoteKind, string> = {
   internal: "Internal",
@@ -274,19 +277,20 @@ function ActionButton({
   C: ThemeColors;
 }) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       disabled={loading}
-      style={({ pressed }) => ({
+      activeOpacity={0.7}
+      style={{
         backgroundColor: destructive ? C.alertBg : C.accentMuted,
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: "center",
         borderWidth: 1,
         borderColor: destructive ? C.alert + "40" : C.accent + "40",
-        opacity: pressed || loading ? 0.6 : 1,
+        opacity: loading ? 0.6 : 1,
         marginBottom: 8,
-      })}
+      }}
     >
       <Text
         style={{
@@ -297,7 +301,7 @@ function ActionButton({
       >
         {loading ? "Updating…" : label}
       </Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -315,10 +319,11 @@ function PaymentButton({
   C: ThemeColors;
 }) {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       disabled={loading}
-      style={({ pressed }) => ({
+      activeOpacity={0.7}
+      style={{
         flex: 1,
         backgroundColor: C.surface,
         borderRadius: 10,
@@ -326,13 +331,13 @@ function PaymentButton({
         alignItems: "center",
         borderWidth: 1,
         borderColor: C.border,
-        opacity: pressed || loading ? 0.6 : 1,
-      })}
+        opacity: loading ? 0.6 : 1,
+      }}
     >
       <Text style={{ fontSize: 13, fontWeight: "600", color: C.textPrimary }}>
         {loading ? "…" : label}
       </Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
@@ -342,8 +347,7 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  const raw = useColorScheme();
-  const scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
+  const scheme = useScheme();
   const C = useColors();
 
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
@@ -401,11 +405,11 @@ export default function OrderDetailScreen() {
         >
           Invalid order
         </Text>
-        <Pressable onPress={() => router.replace("/orders")}>
+        <TouchableOpacity onPress={() => router.replace("/orders")} activeOpacity={0.7}>
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Orders
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -464,11 +468,11 @@ export default function OrderDetailScreen() {
         >
           {error?.message ?? "This order may have been deleted."}
         </Text>
-        <Pressable onPress={() => router.replace("/orders")}>
+        <TouchableOpacity onPress={() => router.replace("/orders")} activeOpacity={0.7}>
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Orders
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -477,8 +481,8 @@ export default function OrderDetailScreen() {
   const nextStatuses = VALID_TRANSITIONS[order.status];
   const canCancel =
     order.status !== "cancelled" && order.status !== "delivered";
-  const statusColor = STATUS_COLORS[order.status];
-  const paymentColor = PAYMENT_COLORS[order.paymentStatus];
+  const statusColor = getStatusColor(order.status, C);
+  const paymentColor = getPaymentColor(order.paymentStatus, C);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -555,7 +559,7 @@ export default function OrderDetailScreen() {
       />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
@@ -622,8 +626,10 @@ export default function OrderDetailScreen() {
           </View>
 
           {/* Status badges */}
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-            <StatusBadge label={order.status} color={statusColor} />
+          <View style={{ flexDirection: "row", marginTop: 12 }}>
+            <View style={{ marginRight: 8 }}>
+              <StatusBadge label={order.status} color={statusColor} />
+            </View>
             <StatusBadge label={order.paymentStatus} color={paymentColor} />
           </View>
         </View>
@@ -758,19 +764,21 @@ export default function OrderDetailScreen() {
               <View
                 style={{
                   flexDirection: "row",
-                  gap: 8,
                   padding: 16,
                   borderTopWidth: 1,
                   borderTopColor: C.border,
                 }}
               >
                 {order.paymentStatus === "unpaid" && (
-                  <PaymentButton
-                    label="Mark as Partial"
-                    onPress={() => handleUpdatePayment("partial")}
-                    loading={updatingPayment}
-                    C={C}
-                  />
+                  <>
+                    <PaymentButton
+                      label="Mark as Partial"
+                      onPress={() => handleUpdatePayment("partial")}
+                      loading={updatingPayment}
+                      C={C}
+                    />
+                    <View style={{ width: 8 }} />
+                  </>
                 )}
                 <PaymentButton
                   label="Mark as Paid"

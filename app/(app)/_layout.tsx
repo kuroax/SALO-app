@@ -66,8 +66,9 @@ function isActive(name: TabDef["name"], pathname: string): boolean {
 // tabBarButton completely replaces React Navigation's item wrapper,
 // so we own the height, padding and centering — no internal offsets to fight.
 
-function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
+function makeTabButton(tab: TabDef, tabWidth: number) {
   return function TabButton() {
+    const C = useColors();
     const router = useRouter();
     const pathname = usePathname();
     const focused = isActive(tab.name, pathname);
@@ -80,7 +81,7 @@ function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
           width: tabWidth,
           height: TAB_BAR_HEIGHT,
           alignItems: "center",
-          justifyContent: "center", // true center — no RN padding fighting us
+          justifyContent: "center",
         }}
       >
         <View
@@ -90,7 +91,7 @@ function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
             paddingVertical: 7,
             paddingHorizontal: 4,
             borderRadius: 18,
-            backgroundColor: focused ? "#2e2e2e" : "transparent",
+            backgroundColor: focused ? C.surfaceElevated : "transparent",
             width: tabWidth - 6,
           }}
         >
@@ -102,7 +103,7 @@ function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
                 width: 16,
                 height: 2,
                 borderRadius: 1,
-                backgroundColor: accentColor,
+                backgroundColor: C.accent,
               }}
             />
           )}
@@ -110,7 +111,7 @@ function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
           <Ionicons
             name={focused ? tab.iconActive : tab.icon}
             size={20}
-            color={focused ? accentColor : "#6b6560"}
+            color={focused ? C.accent : C.tabInactive}
           />
 
           <Text
@@ -120,7 +121,7 @@ function makeTabButton(tab: TabDef, accentColor: string, tabWidth: number) {
             style={{
               fontSize: 10,
               fontWeight: focused ? "700" : "400",
-              color: focused ? accentColor : "#6b6560",
+              color: focused ? C.accent : C.tabInactive,
               marginTop: 3,
               letterSpacing: 0,
               textAlign: "center",
@@ -148,7 +149,7 @@ export default function AppLayout() {
 
   const tabBarStyle = {
     position: "absolute" as const,
-    backgroundColor: "#1c1c1c",
+    backgroundColor: C.tabBar,
     borderTopWidth: 0,
     borderRadius: 28,
     left: PILL_MARGIN,
@@ -185,7 +186,7 @@ export default function AppLayout() {
           key={tab.name}
           name={tab.name}
           options={{
-            tabBarButton: makeTabButton(tab, C.accent, tabWidth),
+            tabBarButton: makeTabButton(tab, tabWidth),
           }}
         />
       ))}

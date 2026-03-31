@@ -15,7 +15,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -240,8 +239,6 @@ export default function InventoryScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
-  const raw = useColorScheme();
-  const _scheme: "light" | "dark" = raw === "light" ? "light" : "dark";
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -465,7 +462,7 @@ export default function InventoryScreen() {
             elevation: 6,
           }}
         >
-          <Ionicons name="add" size={28} color="#fff" />
+          <Ionicons name="add" size={28} color={C.background} />
         </TouchableOpacity>
       </View>
     </>
