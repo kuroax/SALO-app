@@ -15,7 +15,7 @@ const IS_PROD = process.env.EXPO_PUBLIC_APP_ENV === "production";
 module.exports = {
   expo: {
     name: IS_PROD ? "SALO" : "SALO (dev)",
-    slug: "SALO-app",
+    slug: "salo",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
