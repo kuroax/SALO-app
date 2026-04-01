@@ -55,8 +55,6 @@ const CREATE_CUSTOMER = gql`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Channel = "manual" | "whatsapp" | "instagram";
-
 type Product = {
   id: string;
   name: string;
@@ -83,18 +81,8 @@ type OrderLineItem = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CHANNELS: { value: Channel; label: string }[] = [
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "instagram", label: "Instagram" },
-  { value: "manual", label: "Manual" },
-];
-
-// Backend only accepts "whatsapp" | "instagram". "manual" is a UI-only concept
-// that maps to "whatsapp" when persisted.
-function toApiChannel(c: Channel): "whatsapp" | "instagram" {
-  return c === "manual" ? "whatsapp" : c;
-}
-
+// Manual orders created from the app always use "whatsapp" channel internally.
+// Channel selection is removed from the UI — only the bot uses whatsapp/instagram.
 const DEFAULT_COLOR = "default";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -167,7 +155,6 @@ export default function CreateOrderScreen() {
   const C = useColors();
   const scheme = useScheme();
 
-  const [channel, setChannel] = useState<Channel>("manual");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [items, setItems] = useState<OrderLineItem[]>([]);
@@ -182,6 +169,7 @@ export default function CreateOrderScreen() {
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerInstagram, setNewCustomerInstagram] = useState("");
 
   // Product selection state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -227,6 +215,7 @@ export default function CreateOrderScreen() {
       setShowNewCustomerForm(false);
       setNewCustomerName("");
       setNewCustomerPhone("");
+      setNewCustomerInstagram("");
       setCustomerPickerVisible(false);
     },
     onError: (err) => Alert.alert("Error", err.message),
@@ -312,14 +301,16 @@ export default function CreateOrderScreen() {
   };
 
   const handleCreate = () => {
+    if (!customerId)
+      return Alert.alert("Required", "Please select a customer.");
     if (items.length === 0)
       return Alert.alert("Required", "Add at least one item.");
 
     createOrder({
       variables: {
         input: {
-          customerId: customerId || null,
-          channel: toApiChannel(channel),
+          customerId,
+          channel: "whatsapp",
           items: items.map((i) => ({
             productId: i.productId,
             size: i.size,
@@ -343,14 +334,22 @@ export default function CreateOrderScreen() {
   const handleSaveNewCustomer = () => {
     const name = newCustomerName.trim();
     const rawPhone = newCustomerPhone.trim();
+    const instagram = newCustomerInstagram.trim().replace(/^@/, "");
     if (!name) return Alert.alert("Required", "Enter a customer name.");
+    if (!rawPhone && !instagram)
+      return Alert.alert(
+        "Required",
+        "Enter a phone number or Instagram handle.",
+      );
     const phone = rawPhone ? normalizePhone(rawPhone) : undefined;
+    const contactChannel = instagram && !rawPhone ? "instagram" : "whatsapp";
     createCustomer({
       variables: {
         input: {
           name,
-          contactChannel: toApiChannel(channel),
+          contactChannel,
           ...(phone ? { phone } : {}),
+          ...(instagram ? { instagramHandle: instagram } : {}),
         },
       },
     });
@@ -362,6 +361,7 @@ export default function CreateOrderScreen() {
     setShowNewCustomerForm(false);
     setNewCustomerName("");
     setNewCustomerPhone("");
+    setNewCustomerInstagram("");
   };
 
   return (
@@ -417,54 +417,6 @@ export default function CreateOrderScreen() {
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
-            {/* ── Channel ──────────────────────────────────────────────── */}
-            <View style={{ marginBottom: 16 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                Channel
-              </Text>
-              <View style={{ flexDirection: "row" }}>
-                {CHANNELS.map((ch, i) => {
-                  const selected = channel === ch.value;
-                  return (
-                    <TouchableOpacity
-                      key={ch.value}
-                      onPress={() => setChannel(ch.value)}
-                      activeOpacity={0.7}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderRadius: 10,
-                        backgroundColor: selected ? C.accentMuted : C.surface,
-                        borderWidth: 1,
-                        borderColor: selected ? C.accent : C.border,
-                        alignItems: "center",
-                        marginRight: i < CHANNELS.length - 1 ? 8 : 0,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: selected ? C.accent : C.textSecondary,
-                        }}
-                      >
-                        {ch.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
             {/* ── Customer ──────────────────────────────────────────────── */}
             <View style={{ marginBottom: 16 }}>
               <Text
@@ -477,7 +429,7 @@ export default function CreateOrderScreen() {
                   marginBottom: 8,
                 }}
               >
-                Customer (optional)
+                Customer
               </Text>
               {customerId ? (
                 <View
@@ -825,11 +777,18 @@ export default function CreateOrderScreen() {
                 C={C}
               />
               <Field
-                label="Phone (optional)"
+                label="Phone"
                 value={newCustomerPhone}
                 onChangeText={setNewCustomerPhone}
                 placeholder="+52 33 1234 5678"
                 keyboardType="phone-pad"
+                C={C}
+              />
+              <Field
+                label="Instagram"
+                value={newCustomerInstagram}
+                onChangeText={setNewCustomerInstagram}
+                placeholder="@handle"
                 C={C}
               />
               <Text
@@ -840,8 +799,7 @@ export default function CreateOrderScreen() {
                   lineHeight: 18,
                 }}
               >
-                The customer will be saved and automatically selected for this
-                order.
+                Name is required. Phone or Instagram is required.
               </Text>
             </ScrollView>
           ) : (

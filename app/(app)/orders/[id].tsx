@@ -395,7 +395,6 @@ export default function OrderDetailScreen() {
       });
       cache.gc();
     },
-    refetchQueries: ["ListOrders"],
     onCompleted: () => {
       Alert.alert("Deleted", "Order has been permanently deleted.", [
         { text: "OK", onPress: () => router.replace("/orders") },
@@ -702,39 +701,27 @@ export default function OrderDetailScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 20 }}>
-          {/* ── Order info ──────────────────────────────────────────── */}
-          <Section title="Order Info" C={C}>
-            <InfoRow label="Channel" value={order.channel} C={C} />
-            <InfoRow
-              label="Updated"
-              value={formatDate(order.updatedAt)}
-              C={C}
-            />
-            {/* Internal system ID — for support and debug use */}
-            <InfoRow label="System ID" value={order.id} C={C} last mono />
-          </Section>
-
           {/* ── Customer ────────────────────────────────────────────── */}
           <Section title="Customer" C={C}>
             {customer ? (
               <>
                 <InfoRow label="Name" value={customer.name} C={C} />
                 {customer.phone && (
-                  <InfoRow label="Phone" value={customer.phone} C={C} />
+                  <InfoRow
+                    label="Phone"
+                    value={customer.phone}
+                    C={C}
+                    last={!customer.instagramHandle}
+                  />
                 )}
                 {customer.instagramHandle && (
                   <InfoRow
                     label="Instagram"
                     value={`@${customer.instagramHandle}`}
                     C={C}
+                    last
                   />
                 )}
-                <InfoRow
-                  label="Channel"
-                  value={customer.contactChannel}
-                  C={C}
-                  last
-                />
               </>
             ) : order.customerId ? (
               <InfoRow
@@ -827,24 +814,17 @@ export default function OrderDetailScreen() {
               C={C}
               last
             />
+          </Section>
 
-            {order.paymentStatus !== "paid" && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  padding: 16,
-                  borderTopWidth: 1,
-                  borderTopColor: C.border,
-                }}
-              >
-                <PaymentButton
-                  label="Mark as Paid"
-                  onPress={() => handleUpdatePayment("paid")}
-                  loading={updatingPayment}
-                  C={C}
-                />
-              </View>
-            )}
+          {/* ── Order Info ──────────────────────────────────────────── */}
+          <Section title="Order Info" C={C}>
+            <InfoRow label="Channel" value={order.channel} C={C} />
+            <InfoRow
+              label="Updated"
+              value={formatDate(order.updatedAt)}
+              C={C}
+            />
+            <InfoRow label="System ID" value={order.id} C={C} last mono />
           </Section>
 
           {/* ── Activity ────────────────────────────────────────────── */}
@@ -919,49 +899,68 @@ export default function OrderDetailScreen() {
           </Section>
 
           {/* ── Actions ─────────────────────────────────────────────── */}
-          {(nextStatuses.length > 0 || canCancel) && (
-            <View style={{ marginBottom: 8 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1.5,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 10,
-                }}
-              >
-                Actions
-              </Text>
+          <View style={{ marginBottom: 8 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                letterSpacing: 1.5,
+                color: C.textTertiary,
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              Actions
+            </Text>
 
-              {nextStatuses.map((nextStatus) => (
-                <ActionButton
-                  key={nextStatus}
-                  label={`Move to ${STATUS_LABELS[nextStatus]}`}
-                  onPress={() => handleUpdateStatus(nextStatus)}
-                  loading={isActionLoading}
-                  C={C}
-                />
-              ))}
-
-              {canCancel && (
-                <ActionButton
-                  label="Cancel Order"
-                  onPress={handleCancel}
-                  loading={isActionLoading}
-                  destructive
-                  C={C}
-                />
-              )}
+            {/* Status progression buttons */}
+            {nextStatuses.map((nextStatus) => (
               <ActionButton
-                label="Delete Order"
-                onPress={handleDelete}
-                loading={deleting}
-                destructive
+                key={nextStatus}
+                label={`Move to ${STATUS_LABELS[nextStatus]}`}
+                onPress={() => handleUpdateStatus(nextStatus)}
+                loading={isActionLoading}
                 C={C}
               />
-            </View>
-          )}
+            ))}
+
+            {/* Mark as Paid + Cancel Order side by side */}
+            {((order.paymentStatus !== "paid" &&
+              order.status !== "cancelled") ||
+              canCancel) && (
+              <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                {order.paymentStatus !== "paid" &&
+                  order.status !== "cancelled" && (
+                    <>
+                      <PaymentButton
+                        label="Mark Paid"
+                        onPress={() => handleUpdatePayment("paid")}
+                        loading={updatingPayment}
+                        C={C}
+                      />
+                      <View style={{ width: 8 }} />
+                    </>
+                  )}
+                {canCancel && (
+                  <PaymentButton
+                    label="Cancel Order"
+                    onPress={handleCancel}
+                    loading={isActionLoading}
+                    C={C}
+                  />
+                )}
+              </View>
+            )}
+
+            {/* Delete Order — always visible, full width */}
+            <ActionButton
+              label="Delete Order"
+              onPress={handleDelete}
+              loading={deleting}
+              destructive
+              C={C}
+            />
+          </View>
         </View>
       </ScrollView>
     </>
