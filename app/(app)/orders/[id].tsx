@@ -1,6 +1,7 @@
 import { type ThemeColors } from "@/constants/Colors";
 import {
   CANCEL_ORDER,
+  DELETE_ORDER,
   UPDATE_ORDER_STATUS,
   UPDATE_PAYMENT_STATUS,
 } from "@/lib/graphql/mutations/order.mutations";
@@ -117,7 +118,7 @@ function getStatusColor(status: OrderStatus, C: ThemeColors): string {
     case "processing":
       return C.today;
     case "shipped":
-      return C.accent; // no purple token; accent as stand-in
+      return C.accent;
     case "delivered":
       return C.success;
     case "cancelled":
@@ -145,11 +146,11 @@ const NOTE_KIND_LABELS: Record<NoteKind, string> = {
 function getNoteKindColor(kind: NoteKind, C: ThemeColors): string {
   switch (kind) {
     case "internal":
-      return C.accent; // follows user's chosen accent color
+      return C.accent;
     case "system":
       return C.accent;
     case "customer_message":
-      return "#3b82f6"; // fixed blue — represents the customer
+      return "#3b82f6";
   }
 }
 
@@ -217,11 +218,13 @@ function InfoRow({
   value,
   last,
   C,
+  mono,
 }: {
   label: string;
   value: string;
   last?: boolean;
   C: ThemeColors;
+  mono?: boolean;
 }) {
   return (
     <View
@@ -236,7 +239,18 @@ function InfoRow({
       }}
     >
       <Text style={{ fontSize: 13, color: C.textSecondary }}>{label}</Text>
-      <Text style={{ fontSize: 13, fontWeight: "600", color: C.textPrimary }}>
+      <Text
+        style={{
+          fontSize: mono ? 11 : 13,
+          fontWeight: "600",
+          color: mono ? C.textTertiary : C.textPrimary,
+          fontVariant: mono ? ["tabular-nums"] : undefined,
+          flexShrink: 1,
+          textAlign: "right",
+          marginLeft: 16,
+        }}
+        numberOfLines={1}
+      >
         {value}
       </Text>
     </View>
@@ -374,14 +388,29 @@ export default function OrderDetailScreen() {
   const [cancelOrder, { loading: cancelling }] = useMutation(CANCEL_ORDER, {
     refetchQueries: refetchOrder,
   });
+  const [deleteOrder, { loading: deleting }] = useMutation(DELETE_ORDER, {
+    update(cache) {
+      cache.evict({
+        id: cache.identify({ __typename: "Order", id: orderId }),
+      });
+      cache.gc();
+    },
+    refetchQueries: ["ListOrders"],
+    onCompleted: () => {
+      Alert.alert("Deleted", "Order has been permanently deleted.", [
+        { text: "OK", onPress: () => router.replace("/orders") },
+      ]);
+    },
+    onError: (err) => Alert.alert("Error", err.message),
+  });
   const [updatePayment, { loading: updatingPayment }] = useMutation(
     UPDATE_PAYMENT_STATUS,
     { refetchQueries: refetchOrder },
   );
 
-  const isActionLoading = updatingStatus || cancelling || updatingPayment;
+  const isActionLoading =
+    updatingStatus || cancelling || updatingPayment || deleting;
 
-  // Customer query — must be at top level (hooks rule), skip when no customerId
   const { data: customerData } = useQuery<{ customer: CustomerBasic }>(
     GET_CUSTOMER_NAME,
     {
@@ -566,6 +595,30 @@ export default function OrderDetailScreen() {
     ]);
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Order",
+      `Permanently delete ${order.orderNumber}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteOrder({ variables: { input: { orderId } } });
+            } catch (err) {
+              Alert.alert(
+                "Error",
+                err instanceof Error ? err.message : "Delete failed",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <>
       <StatusBar
@@ -656,8 +709,9 @@ export default function OrderDetailScreen() {
               label="Updated"
               value={formatDate(order.updatedAt)}
               C={C}
-              last
             />
+            {/* Internal system ID — for support and debug use */}
+            <InfoRow label="System ID" value={order.id} C={C} last mono />
           </Section>
 
           {/* ── Customer ────────────────────────────────────────────── */}
@@ -783,17 +837,6 @@ export default function OrderDetailScreen() {
                   borderTopColor: C.border,
                 }}
               >
-                {order.paymentStatus === "unpaid" && (
-                  <>
-                    <PaymentButton
-                      label="Mark as Partial"
-                      onPress={() => handleUpdatePayment("partial")}
-                      loading={updatingPayment}
-                      C={C}
-                    />
-                    <View style={{ width: 8 }} />
-                  </>
-                )}
                 <PaymentButton
                   label="Mark as Paid"
                   onPress={() => handleUpdatePayment("paid")}
@@ -910,6 +953,13 @@ export default function OrderDetailScreen() {
                   C={C}
                 />
               )}
+              <ActionButton
+                label="Delete Order"
+                onPress={handleDelete}
+                loading={deleting}
+                destructive
+                C={C}
+              />
             </View>
           )}
         </View>

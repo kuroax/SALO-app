@@ -77,3 +77,11 @@ export const ADD_ORDER_NOTE = gql`
     }
   }
 `;
+
+// ─── Delete Order ─────────────────────────────────────────────────────────────
+
+export const DELETE_ORDER = gql`
+  mutation DeleteOrder($input: DeleteOrderInput!) {
+    deleteOrder(input: $input)
+  }
+`;
