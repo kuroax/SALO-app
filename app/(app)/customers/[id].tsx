@@ -3,7 +3,11 @@ import {
   DEACTIVATE_CUSTOMER,
   UPDATE_CUSTOMER,
 } from "@/lib/graphql/mutations/customer.mutations";
-import { GET_CUSTOMER, LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
+import {
+  GET_CUSTOMER,
+  LIST_CUSTOMERS,
+} from "@/lib/graphql/queries/customer.queries";
+import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
@@ -42,6 +46,48 @@ type Customer = {
 
 type GetCustomerData = { customer: Customer };
 
+type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+type PaymentStatus = "unpaid" | "partial" | "paid";
+
+type Order = {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  total: number;
+  createdAt: string;
+  customerId: string | null;
+  items: { quantity: number }[];
+};
+
+type ListOrdersData = { orders: Order[] };
+
+const STATUS_COLORS: Record<OrderStatus, string> = {
+  pending: "#f59e0b",
+  confirmed: "#6366f1",
+  processing: "#3b82f6",
+  shipped: "#8b5cf6",
+  delivered: "#10b981",
+  cancelled: "#ef4444",
+};
+
+const PAYMENT_COLORS: Record<PaymentStatus, string> = {
+  unpaid: "#ef4444",
+  partial: "#f59e0b",
+  paid: "#10b981",
+};
+
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+});
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CHANNELS: { value: ContactChannel; label: string }[] = [
@@ -51,28 +97,35 @@ const CHANNELS: { value: ContactChannel; label: string }[] = [
 ];
 
 const ALL_TAGS: { value: CustomerTag; label: string }[] = [
-  { value: "vip",         label: "VIP" },
-  { value: "wholesale",   label: "Wholesale" },
+  { value: "vip", label: "VIP" },
+  { value: "wholesale", label: "Wholesale" },
   { value: "problematic", label: "Problematic" },
-  { value: "regular",     label: "Regular" },
+  { value: "regular", label: "Regular" },
 ];
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 
 function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
   switch (channel) {
-    case "whatsapp":  return C.success;
-    case "instagram": return C.accent; // no purple token; accent as stand-in
-    case "both":      return C.today;
+    case "whatsapp":
+      return C.success;
+    case "instagram":
+      return C.accent; // no purple token; accent as stand-in
+    case "both":
+      return C.today;
   }
 }
 
 function getTagColor(tag: CustomerTag, C: ThemeColors): string {
   switch (tag) {
-    case "vip":         return C.pending;
-    case "wholesale":   return C.today;
-    case "problematic": return C.alert;
-    case "regular":     return C.textSecondary;
+    case "vip":
+      return C.pending;
+    case "wholesale":
+      return C.today;
+    case "problematic":
+      return C.alert;
+    case "regular":
+      return C.textSecondary;
   }
 }
 
@@ -286,6 +339,13 @@ export default function CustomerDetailScreen() {
   const [editNotes, setEditNotes] = useState("");
   const [editAddress, setEditAddress] = useState("");
 
+  const { data: ordersData } = useQuery<ListOrdersData>(LIST_ORDERS, {
+    variables: { filter: { customerId: customerId, limit: 50, skip: 0 } },
+    skip: !customerId,
+  });
+
+  const customerOrders = ordersData?.orders ?? [];
+
   const { data, loading, error } = useQuery<GetCustomerData>(GET_CUSTOMER, {
     variables: { id: customerId },
     skip: !customerId,
@@ -397,7 +457,10 @@ export default function CustomerDetailScreen() {
         >
           Invalid customer
         </Text>
-        <TouchableOpacity onPress={() => router.replace("/customers")} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.replace("/customers")}
+          activeOpacity={0.7}
+        >
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Customers
           </Text>
@@ -460,7 +523,10 @@ export default function CustomerDetailScreen() {
         >
           {error?.message ?? "This customer may no longer exist."}
         </Text>
-        <TouchableOpacity onPress={() => router.replace("/customers")} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.replace("/customers")}
+          activeOpacity={0.7}
+        >
           <Text style={{ color: C.accent, fontWeight: "600" }}>
             Back to Customers
           </Text>
@@ -656,6 +722,130 @@ export default function CustomerDetailScreen() {
                   </Text>
                 </View>
               )}
+          </Section>
+
+          {/* ── Orders ──────────────────────────────────────────────── */}
+          <Section title={`Orders (${customerOrders.length})`} C={C}>
+            {customerOrders.length === 0 ? (
+              <View style={{ padding: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: C.textTertiary,
+                    fontStyle: "italic",
+                  }}
+                >
+                  No orders yet
+                </Text>
+              </View>
+            ) : (
+              customerOrders.map((order, i) => {
+                const statusColor = STATUS_COLORS[order.status];
+                const paymentColor = PAYMENT_COLORS[order.paymentStatus];
+                const itemCount = order.items.reduce(
+                  (sum, it) => sum + it.quantity,
+                  0,
+                );
+                return (
+                  <TouchableOpacity
+                    key={order.id}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/orders/[id]",
+                        params: { id: order.id },
+                      })
+                    }
+                    activeOpacity={0.8}
+                    style={{
+                      padding: 14,
+                      borderBottomWidth: i < customerOrders.length - 1 ? 1 : 0,
+                      borderBottomColor: C.border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: C.textPrimary,
+                        }}
+                      >
+                        {order.orderNumber}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: C.textPrimary,
+                        }}
+                      >
+                        {currencyFormatter.format(order.total)}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <View style={{ flexDirection: "row" }}>
+                        <View
+                          style={{
+                            backgroundColor: statusColor + "18",
+                            borderRadius: 5,
+                            paddingHorizontal: 7,
+                            paddingVertical: 2,
+                            marginRight: 6,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontWeight: "700",
+                              color: statusColor,
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {order.status}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            backgroundColor: paymentColor + "18",
+                            borderRadius: 5,
+                            paddingHorizontal: 7,
+                            paddingVertical: 2,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontWeight: "700",
+                              color: paymentColor,
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {order.paymentStatus}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 11, color: C.textTertiary }}>
+                        {itemCount} unit{itemCount !== 1 ? "s" : ""} ·{" "}
+                        {formatDate(order.createdAt)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </Section>
 
           {/* ── Tags ────────────────────────────────────────────────── */}
