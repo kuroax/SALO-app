@@ -408,12 +408,14 @@ export default function CustomerDetailScreen() {
         id: customerId,
         input: {
           name: editName.trim(),
-          phone: editPhone.trim() ? normalizePhone(editPhone.trim()) : null,
-          instagramHandle: editInstagram.trim() || null,
+          phone: editPhone.trim()
+            ? normalizePhone(editPhone.trim())
+            : undefined,
+          instagramHandle: editInstagram.trim() || undefined,
           contactChannel: editChannel,
           tags: editTags,
-          notes: editNotes.trim() || null,
-          address: editAddress.trim() || null,
+          notes: editNotes.trim() || undefined,
+          address: editAddress.trim() || undefined,
         },
       },
     });
@@ -982,54 +984,6 @@ export default function CustomerDetailScreen() {
               placeholder="handle"
               C={C}
             />
-
-            {/* Channel picker */}
-            <View style={{ marginBottom: 14 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                Contact Channel
-              </Text>
-              <View style={{ flexDirection: "row" }}>
-                {CHANNELS.map((ch, i) => {
-                  const selected = editChannel === ch.value;
-                  return (
-                    <TouchableOpacity
-                      key={ch.value}
-                      onPress={() => setEditChannel(ch.value)}
-                      activeOpacity={0.7}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderRadius: 10,
-                        backgroundColor: selected ? C.accentMuted : C.surface,
-                        borderWidth: 1,
-                        borderColor: selected ? C.accent : C.border,
-                        alignItems: "center",
-                        marginRight: i < CHANNELS.length - 1 ? 8 : 0,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: selected ? C.accent : C.textSecondary,
-                        }}
-                      >
-                        {ch.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
 
             {/* Tags */}
             <View style={{ marginBottom: 14 }}>
