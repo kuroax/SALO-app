@@ -705,8 +705,18 @@ export default function DashboardScreen() {
           </View>
 
           {/* Revenue chart — last 3 months */}
-          <SectionHeader title="Revenue" C={C} />
-          <RevenueChart data={revenueStatsData?.revenueStats ?? []} C={C} />
+          <SectionHeader
+            title="Revenue"
+            action="Details"
+            onAction={() => router.push("/revenue")}
+            C={C}
+          />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push("/revenue")}
+          >
+            <RevenueChart data={revenueStatsData?.revenueStats ?? []} C={C} />
+          </TouchableOpacity>
 
           {/* ── Quick Actions ──────────────────────────────────────────── */}
           <SectionHeader title="Quick Actions" C={C} />
