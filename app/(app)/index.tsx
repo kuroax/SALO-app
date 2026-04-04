@@ -561,23 +561,23 @@ export default function DashboardScreen() {
           <SectionHeader title="Quick Actions" C={C} />
           <View style={{ flexDirection: "row", marginBottom: 28 }}>
             <QuickAction
-              label="Orders"
-              icon="receipt-outline"
-              onPress={() => router.navigate("/orders")}
+              label="Create Order"
+              icon="add-circle-outline"
+              onPress={() => router.push("/orders/create-order")}
               C={C}
             />
             <View style={{ width: 10 }} />
             <QuickAction
-              label="Inventory"
+              label="Add Product"
               icon="cube-outline"
-              onPress={() => router.navigate("/inventory")}
+              onPress={() => router.push("/inventory/add-product")}
               C={C}
             />
             <View style={{ width: 10 }} />
             <QuickAction
-              label="Customers"
-              icon="people-outline"
-              onPress={() => router.navigate("/customers")}
+              label="Add Customer"
+              icon="person-add-outline"
+              onPress={() => router.push("/customers")}
               C={C}
             />
           </View>

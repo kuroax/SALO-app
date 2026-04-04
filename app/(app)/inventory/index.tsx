@@ -11,6 +11,7 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   StatusBar,
   Text,
   TextInput,
@@ -18,7 +19,7 @@ import {
   View,
 } from "react-native";
 
-// ─── Query (includes images) ──────────────────────────────────────────────────
+// ─── Query ────────────────────────────────────────────────────────────────────
 
 const LIST_PRODUCTS_WITH_IMAGES = gql`
   query ListProductsWithImages($filters: ListProductsInput) {
@@ -29,6 +30,8 @@ const LIST_PRODUCTS_WITH_IMAGES = gql`
         brand
         status
         images
+        categoryGroup
+        subcategory
         variants {
           size
           color
@@ -52,6 +55,8 @@ type Product = {
   brand: string;
   status: string;
   images: string[];
+  categoryGroup?: string;
+  subcategory?: string;
   variants: ProductVariant[];
 };
 
@@ -65,6 +70,58 @@ type ListProductsData = {
 type LowStockData = {
   lowStock: { productId: string }[];
 };
+
+// ─── Filter Chips ─────────────────────────────────────────────────────────────
+
+function FilterChips({
+  options,
+  selected,
+  onSelect,
+  C,
+}: {
+  options: string[];
+  selected: string;
+  onSelect: (v: string) => void;
+  C: ThemeColors;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 20 }}
+    >
+      {options.map((opt, i) => {
+        const active = selected === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            onPress={() => onSelect(opt)}
+            activeOpacity={0.7}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+              borderRadius: 20,
+              backgroundColor: active ? C.accent : C.surface,
+              borderWidth: 1,
+              borderColor: active ? C.accent : C.border,
+              marginRight: i < options.length - 1 ? 8 : 0,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: active ? "700" : "500",
+                color: active ? C.background : C.textSecondary,
+              }}
+            >
+              {opt}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
 
@@ -97,7 +154,6 @@ function ProductCard({
         alignItems: "center",
       }}
     >
-      {/* Image or placeholder */}
       <View
         style={{
           width: 64,
@@ -124,7 +180,6 @@ function ProductCard({
         )}
       </View>
 
-      {/* Info */}
       <View style={{ flex: 1 }}>
         <View
           style={{
@@ -217,7 +272,7 @@ function EmptyState({ C }: { C: ThemeColors }) {
           marginBottom: 6,
         }}
       >
-        No products yet
+        No products found
       </Text>
       <Text
         style={{
@@ -227,7 +282,7 @@ function EmptyState({ C }: { C: ThemeColors }) {
           lineHeight: 20,
         }}
       >
-        Add products to start tracking inventory.
+        Try adjusting your search or filters.
       </Text>
     </View>
   );
@@ -242,6 +297,8 @@ export default function InventoryScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("All");
 
   const {
     data: productsData,
@@ -257,17 +314,64 @@ export default function InventoryScreen() {
 
   const products = productsData?.products.products ?? [];
 
-  const filteredProducts = searchQuery.trim()
-    ? products.filter((p) => {
-        const q = searchQuery.toLowerCase();
-        return (
-          p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)
-        );
-      })
-    : products;
+  // ── Derive filter options from loaded products ─────────────────────────────
+
+  const categoryGroups = [
+    "All",
+    ...Array.from(
+      new Set(
+        products
+          .map((p) => p.categoryGroup)
+          .filter((c): c is string => Boolean(c)),
+      ),
+    ).sort(),
+  ];
+
+  const subcategoryOptions = [
+    "All",
+    ...Array.from(
+      new Set(
+        products
+          .filter(
+            (p) =>
+              selectedCategory === "All" ||
+              p.categoryGroup === selectedCategory,
+          )
+          .map((p) => p.subcategory)
+          .filter((s): s is string => Boolean(s)),
+      ),
+    ).sort(),
+  ];
+
+  // Reset subcategory when category changes
+  const handleCategorySelect = (cat: string) => {
+    setSelectedCategory(cat);
+    setSelectedSubcategory("All");
+  };
+
+  // ── Filter products ────────────────────────────────────────────────────────
+
+  const filteredProducts = products.filter((p) => {
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.brand.toLowerCase().includes(q);
+    const matchesCategory =
+      selectedCategory === "All" || p.categoryGroup === selectedCategory;
+    const matchesSubcategory =
+      selectedSubcategory === "All" || p.subcategory === selectedSubcategory;
+    return matchesSearch && matchesCategory && matchesSubcategory;
+  });
+
   const lowStockProductIds = new Set(
     lowStockData?.lowStock.map((item) => item.productId) ?? [],
   );
+
+  const hasActiveFilters =
+    selectedCategory !== "All" ||
+    selectedSubcategory !== "All" ||
+    searchQuery.trim().length > 0;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -336,30 +440,32 @@ export default function InventoryScreen() {
         <View
           style={{
             backgroundColor: C.background,
-            paddingHorizontal: 20,
             paddingTop: 64,
-            paddingBottom: 16,
+            paddingBottom: 12,
           }}
         >
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: "800",
-              color: C.textPrimary,
-              letterSpacing: -0.5,
-            }}
-          >
-            Inventory
-          </Text>
-          {products.length > 0 && (
+          {/* Title + count */}
+          <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
             <Text
-              style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
+              style={{
+                fontSize: 28,
+                fontWeight: "800",
+                color: C.textPrimary,
+                letterSpacing: -0.5,
+              }}
             >
-              {filteredProducts.length}{" "}
-              {filteredProducts.length === 1 ? "product" : "products"}
-              {searchQuery ? " found" : ""}
+              Inventory
             </Text>
-          )}
+            {products.length > 0 && (
+              <Text
+                style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
+              >
+                {filteredProducts.length}{" "}
+                {filteredProducts.length === 1 ? "product" : "products"}
+                {hasActiveFilters ? " found" : ""}
+              </Text>
+            )}
+          </View>
 
           {/* Search bar */}
           <View
@@ -371,7 +477,8 @@ export default function InventoryScreen() {
               borderWidth: 1,
               borderColor: C.border,
               paddingHorizontal: 12,
-              marginTop: 12,
+              marginHorizontal: 20,
+              marginBottom: 12,
             }}
           >
             <Ionicons
@@ -407,6 +514,65 @@ export default function InventoryScreen() {
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Category chips — only shown when there are categories in data */}
+          {categoryGroups.length > 1 && (
+            <View style={{ marginBottom: 8 }}>
+              <FilterChips
+                options={categoryGroups}
+                selected={selectedCategory}
+                onSelect={handleCategorySelect}
+                C={C}
+              />
+            </View>
+          )}
+
+          {/* Subcategory chips — only shown when a category is selected and has subcategories */}
+          {selectedCategory !== "All" && subcategoryOptions.length > 1 && (
+            <View style={{ marginBottom: 4 }}>
+              <FilterChips
+                options={subcategoryOptions}
+                selected={selectedSubcategory}
+                onSelect={setSelectedSubcategory}
+                C={C}
+              />
+            </View>
+          )}
+
+          {/* Clear filters pill */}
+          {hasActiveFilters && (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery("");
+                setSelectedCategory("All");
+                setSelectedSubcategory("All");
+              }}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                alignSelf: "flex-start",
+                marginHorizontal: 20,
+                marginTop: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 20,
+                backgroundColor: C.alertBg,
+                borderWidth: 1,
+                borderColor: C.alert + "30",
+              }}
+            >
+              <Ionicons
+                name="close-circle-outline"
+                size={13}
+                color={C.alert}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={{ fontSize: 12, fontWeight: "600", color: C.alert }}>
+                Clear filters
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── List ────────────────────────────────────────────────────── */}
@@ -415,6 +581,7 @@ export default function InventoryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{
             paddingHorizontal: 20,
+            paddingTop: 12,
             paddingBottom: 120,
             flexGrow: 1,
           }}

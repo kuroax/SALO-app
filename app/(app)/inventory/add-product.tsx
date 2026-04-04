@@ -6,7 +6,7 @@ import { useMutation } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -68,6 +68,28 @@ const DEFAULT_COLOR = "default";
 
 type SizeStock = { size: Size; quantity: number };
 
+// ─── Category Map ─────────────────────────────────────────────────────────────
+
+const CATEGORY_MAP: Record<string, string[]> = {
+  Tops: [
+    "T-Shirts",
+    "Tanks",
+    "Long Sleeves",
+    "Sports Bras",
+    "Crop Tops",
+    "Hoodies",
+    "Sweatshirts",
+  ],
+  Bottoms: ["Leggings", "Shorts", "Joggers", "Skirts", "Sweatpants"],
+  Dresses: ["Mini Dress", "Midi Dress", "Maxi Dress"],
+  Outerwear: ["Jackets", "Vests", "Coats", "Windbreakers"],
+  Sets: ["Matching Set", "Two-Piece Set", "Three-Piece Set"],
+  Accessories: ["Bags", "Hats", "Socks", "Headbands", "Belts"],
+  Footwear: ["Sneakers", "Sandals", "Slippers", "Boots"],
+};
+
+const CATEGORY_GROUPS = Object.keys(CATEGORY_MAP);
+
 // ─── Field ────────────────────────────────────────────────────────────────────
 
 function Field({
@@ -127,6 +149,181 @@ function Field({
   );
 }
 
+// ─── Searchable Select ────────────────────────────────────────────────────────
+
+function SearchableSelect({
+  label,
+  value,
+  onSelect,
+  options,
+  placeholder,
+  disabled,
+  C,
+}: {
+  label: string;
+  value: string;
+  onSelect: (v: string) => void;
+  options: string[];
+  placeholder: string;
+  disabled?: boolean;
+  C: ThemeColors;
+}) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+
+  // Sync query when value is cleared externally (e.g. categoryGroup change resets subcategory)
+  useEffect(() => {
+    if (value === "") setQuery("");
+  }, [value]);
+
+  const filtered = options.filter((o) =>
+    o.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  const exactMatch = options.some(
+    (o) => o.toLowerCase() === query.trim().toLowerCase(),
+  );
+  const showCustomOption = query.trim().length > 0 && !exactMatch;
+
+  const handleSelect = (v: string) => {
+    setQuery(v);
+    onSelect(v);
+    setOpen(false);
+  };
+
+  const handleChangeText = (t: string) => {
+    setQuery(t);
+    onSelect(t);
+    setOpen(true);
+  };
+
+  const showDropdown =
+    open && !disabled && (filtered.length > 0 || showCustomOption);
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: disabled ? C.textTertiary + "60" : C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </Text>
+
+      {/* Input row */}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={() => {
+          if (!disabled) setOpen((prev) => !prev);
+        }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: disabled ? C.surface + "80" : C.surface,
+          borderWidth: 1,
+          borderColor: open && !disabled ? C.accent : C.border,
+          borderRadius: 12,
+          paddingHorizontal: 16,
+          paddingVertical: 13,
+        }}
+      >
+        <TextInput
+          value={query}
+          onChangeText={handleChangeText}
+          onFocus={() => {
+            if (!disabled) setOpen(true);
+          }}
+          placeholder={disabled ? "Select a category group first" : placeholder}
+          placeholderTextColor={C.textTertiary}
+          editable={!disabled}
+          autoCapitalize="words"
+          autoCorrect={false}
+          style={{
+            flex: 1,
+            fontSize: 15,
+            color: disabled ? C.textTertiary : C.textPrimary,
+            padding: 0,
+          }}
+        />
+        <Ionicons
+          name={open && !disabled ? "chevron-up" : "chevron-down"}
+          size={16}
+          color={C.textTertiary}
+        />
+      </TouchableOpacity>
+
+      {/* Dropdown list */}
+      {showDropdown && (
+        <View
+          style={{
+            backgroundColor: C.surface,
+            borderWidth: 1,
+            borderColor: C.accent,
+            borderRadius: 12,
+            marginTop: 4,
+            overflow: "hidden",
+          }}
+        >
+          {filtered.map((option, i) => (
+            <TouchableOpacity
+              key={option}
+              onPress={() => handleSelect(option)}
+              activeOpacity={0.7}
+              style={{
+                paddingVertical: 13,
+                paddingHorizontal: 16,
+                borderBottomWidth:
+                  i < filtered.length - 1 || showCustomOption ? 1 : 0,
+                borderBottomColor: C.border,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ flex: 1, fontSize: 15, color: C.textPrimary }}>
+                {option}
+              </Text>
+              {option.toLowerCase() === query.trim().toLowerCase() && (
+                <Ionicons name="checkmark" size={16} color={C.accent} />
+              )}
+            </TouchableOpacity>
+          ))}
+
+          {/* Custom option */}
+          {showCustomOption && (
+            <TouchableOpacity
+              onPress={() => handleSelect(query.trim())}
+              activeOpacity={0.7}
+              style={{
+                paddingVertical: 13,
+                paddingHorizontal: 16,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={16}
+                color={C.accent}
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={{ fontSize: 15, color: C.accent, fontWeight: "600" }}
+              >
+                Use &ldquo;{query.trim()}&rdquo;
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Add Product Screen ───────────────────────────────────────────────────────
 
 export default function AddProductScreen() {
@@ -150,6 +347,17 @@ export default function AddProductScreen() {
   }>(CREATE_PRODUCT);
 
   const [addStock] = useMutation(ADD_STOCK);
+
+  // Subcategory options based on selected category group
+  const subcategoryOptions: string[] = categoryGroup
+    ? (CATEGORY_MAP[categoryGroup] ?? [])
+    : [];
+
+  // When category group changes, reset subcategory
+  const handleCategoryGroupSelect = (v: string) => {
+    setCategoryGroup(v);
+    setSubcategory("");
+  };
 
   // ── Image picker ──────────────────────────────────────────────────────────
 
@@ -252,7 +460,6 @@ export default function AddProductScreen() {
       const productId = data?.createProduct.id;
       const productName = data?.createProduct.name ?? name;
 
-      // Add initial stock for each size that has quantity > 0
       if (productId) {
         const stockOps = sizeStocks.filter((s) => s.quantity > 0);
         await Promise.all(
@@ -293,7 +500,10 @@ export default function AddProductScreen() {
         style={{ flex: 1, backgroundColor: C.background }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* ── Header ──────────────────────────────────────────────── */}
           <View
             style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
@@ -526,19 +736,24 @@ export default function AddProductScreen() {
               </View>
             </View>
 
-            {/* ── Category ────────────────────────────────────────────── */}
-            <Field
+            {/* ── Category Group ────────────────────────────────────── */}
+            <SearchableSelect
               label="Category Group"
               value={categoryGroup}
-              onChangeText={setCategoryGroup}
+              onSelect={handleCategoryGroupSelect}
+              options={CATEGORY_GROUPS}
               placeholder="e.g. Tops"
               C={C}
             />
-            <Field
+
+            {/* ── Subcategory ───────────────────────────────────────── */}
+            <SearchableSelect
               label="Subcategory"
               value={subcategory}
-              onChangeText={setSubcategory}
+              onSelect={setSubcategory}
+              options={subcategoryOptions}
               placeholder="e.g. Hoodies"
+              disabled={!categoryGroup.trim()}
               C={C}
             />
 
