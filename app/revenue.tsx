@@ -13,6 +13,8 @@ import {
     View,
 } from "react-native";
 
+// ─── Query ────────────────────────────────────────────────────────────────────
+
 const REVENUE_DETAIL = gql`
   query RevenueDetail {
     revenueDetail(months: 12, topProductsLimit: 10) {
@@ -47,6 +49,8 @@ const REVENUE_DETAIL = gql`
   }
 `;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type MonthStat = {
   year: number;
   month: number;
@@ -54,29 +58,37 @@ type MonthStat = {
   revenue: number;
   orderCount: number;
 };
+
 type BreakdownItem = { count: number; revenue: number };
+
 type PaymentBreakdown = {
   paid: BreakdownItem;
   partial: BreakdownItem;
   unpaid: BreakdownItem;
 };
+
 type ProductRevenue = {
   productId: string;
   productName: string;
   revenue: number;
   unitsSold: number;
 };
+
 type RevenueDetail = {
   monthlyStats: MonthStat[];
   paymentBreakdown: PaymentBreakdown;
   topProducts: ProductRevenue[];
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const fmt = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
   maximumFractionDigits: 0,
 });
+
+// ─── Section Label ────────────────────────────────────────────────────────────
 
 function SectionLabel({ title, C }: { title: string; C: ThemeColors }) {
   return (
@@ -96,11 +108,14 @@ function SectionLabel({ title, C }: { title: string; C: ThemeColors }) {
   );
 }
 
+// ─── Monthly Bar Chart ────────────────────────────────────────────────────────
+
 function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
   const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
+
   return (
     <View
       style={{
@@ -133,6 +148,7 @@ function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
                   width: 52,
                 }}
               >
+                {/* Amount label */}
                 <Text
                   style={{
                     fontSize: 9,
@@ -145,6 +161,8 @@ function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
                 >
                   {item.revenue > 0 ? fmt.format(item.revenue) : "—"}
                 </Text>
+
+                {/* Bar */}
                 <View
                   style={{
                     width: 36,
@@ -153,6 +171,8 @@ function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
                     backgroundColor: isCurrent ? C.accent : C.accentMuted,
                   }}
                 />
+
+                {/* Order count */}
                 {item.orderCount > 0 && (
                   <Text
                     style={{
@@ -164,6 +184,8 @@ function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
                     {item.orderCount} {item.orderCount === 1 ? "ord" : "ords"}
                   </Text>
                 )}
+
+                {/* Month label */}
                 <Text
                   style={{
                     fontSize: 10,
@@ -184,6 +206,8 @@ function MonthlyChart({ data, C }: { data: MonthStat[]; C: ThemeColors }) {
   );
 }
 
+// ─── Payment Breakdown ────────────────────────────────────────────────────────
+
 function PaymentBreakdownCard({
   data,
   C,
@@ -192,26 +216,31 @@ function PaymentBreakdownCard({
   C: ThemeColors;
 }) {
   const total = data.paid.revenue + data.partial.revenue + data.unpaid.revenue;
+
   const items = [
     {
       label: "Paid",
       color: C.success,
+      bg: C.successBg,
       count: data.paid.count,
       revenue: data.paid.revenue,
     },
     {
       label: "Partial",
       color: C.today,
+      bg: C.todayBg,
       count: data.partial.count,
       revenue: data.partial.revenue,
     },
     {
       label: "Unpaid",
       color: C.alert,
+      bg: C.alertBg,
       count: data.unpaid.count,
       revenue: data.unpaid.revenue,
     },
   ];
+
   return (
     <View
       style={{
@@ -222,16 +251,17 @@ function PaymentBreakdownCard({
         overflow: "hidden",
       }}
     >
+      {/* Progress bar */}
       {total > 0 && (
         <View
           style={{
             flexDirection: "row",
             height: 6,
+            borderRadius: 3,
             overflow: "hidden",
             margin: 16,
             marginBottom: 0,
             backgroundColor: C.border,
-            borderRadius: 3,
           }}
         >
           {items.map((item) => {
@@ -240,12 +270,17 @@ function PaymentBreakdownCard({
             return (
               <View
                 key={item.label}
-                style={{ width: `${pct}%`, backgroundColor: item.color }}
+                style={{
+                  width: `${pct}%`,
+                  backgroundColor: item.color,
+                }}
               />
             );
           })}
         </View>
       )}
+
+      {/* Rows */}
       {items.map((item, i) => (
         <View
           key={item.label}
@@ -293,6 +328,8 @@ function PaymentBreakdownCard({
   );
 }
 
+// ─── Top Products ─────────────────────────────────────────────────────────────
+
 function TopProductsCard({
   data,
   C,
@@ -301,7 +338,9 @@ function TopProductsCard({
   C: ThemeColors;
 }) {
   if (!data.length) return null;
+
   const maxRevenue = Math.max(...data.map((p) => p.revenue), 1);
+
   return (
     <View
       style={{
@@ -324,6 +363,7 @@ function TopProductsCard({
               borderBottomColor: C.border,
             }}
           >
+            {/* Rank + name + revenue */}
             <View
               style={{
                 flexDirection: "row",
@@ -363,6 +403,8 @@ function TopProductsCard({
                 {fmt.format(product.revenue)}
               </Text>
             </View>
+
+            {/* Bar + units */}
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={{ flex: 1, marginRight: 10 }}>
                 <View
@@ -393,13 +435,17 @@ function TopProductsCard({
   );
 }
 
+// ─── Revenue Screen ───────────────────────────────────────────────────────────
+
 export default function RevenueScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+
   const { data, loading, error } = useQuery<{ revenueDetail: RevenueDetail }>(
     REVENUE_DETAIL,
   );
+
   const detail = data?.revenueDetail;
 
   return (
@@ -408,6 +454,7 @@ export default function RevenueScreen() {
         barStyle={scheme === "dark" ? "light-content" : "dark-content"}
       />
       <View style={{ flex: 1, backgroundColor: C.background }}>
+        {/* ── Header ────────────────────────────────────────────────── */}
         <View
           style={{
             paddingHorizontal: 20,
@@ -447,9 +494,15 @@ export default function RevenueScreen() {
             <Ionicons name="close" size={16} color={C.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {/* ── Content ───────────────────────────────────────────────── */}
         {loading && !detail ? (
           <View
-            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
             <ActivityIndicator size="large" color={C.accent} />
           </View>
@@ -480,16 +533,24 @@ export default function RevenueScreen() {
           </View>
         ) : (
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60 }}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingBottom: 60,
+            }}
           >
+            {/* Monthly breakdown */}
             <SectionLabel title="Last 12 Months" C={C} />
             {detail?.monthlyStats && (
               <MonthlyChart data={detail.monthlyStats} C={C} />
             )}
+
+            {/* Payment breakdown */}
             <SectionLabel title="Payment Status" C={C} />
             {detail?.paymentBreakdown && (
               <PaymentBreakdownCard data={detail.paymentBreakdown} C={C} />
             )}
+
+            {/* Top products */}
             {detail?.topProducts && detail.topProducts.length > 0 && (
               <>
                 <SectionLabel title="Top Products" C={C} />

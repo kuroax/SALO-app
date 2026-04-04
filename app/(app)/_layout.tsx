@@ -1,6 +1,6 @@
 import { useColors } from "@/lib/hooks/useColors";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, usePathname, useRouter } from "expo-router";
+import { type Href, Tabs, usePathname, useRouter } from "expo-router";
 import { type ComponentProps } from "react";
 import {
   Text,
@@ -53,7 +53,7 @@ const TABS: readonly TabDef[] = [
   },
 ];
 
-function tabHref(name: TabDef["name"]): string {
+function tabHref(name: TabDef["name"]): Href {
   return name === "index" ? "/" : `/${name}`;
 }
 
@@ -75,7 +75,7 @@ function makeTabButton(tab: TabDef, tabWidth: number) {
 
     return (
       <TouchableOpacity
-        onPress={() => router.navigate(tabHref(tab.name) as never)}
+        onPress={() => router.navigate(tabHref(tab.name))}
         activeOpacity={0.75}
         style={{
           width: tabWidth,
