@@ -68,27 +68,32 @@ const DEFAULT_COLOR = "default";
 
 type SizeStock = { size: Size; quantity: number };
 
-// ─── Category Map ─────────────────────────────────────────────────────────────
+// ─── Category Map (gender-aware) ─────────────────────────────────────────────
 
-const CATEGORY_MAP: Record<string, string[]> = {
-  Tops: [
-    "T-Shirts",
-    "Tanks",
-    "Long Sleeves",
-    "Sports Bras",
-    "Crop Tops",
-    "Hoodies",
-    "Sweatshirts",
-  ],
-  Bottoms: ["Leggings", "Shorts", "Joggers", "Skirts", "Sweatpants"],
-  Dresses: ["Mini Dress", "Midi Dress", "Maxi Dress"],
-  Outerwear: ["Jackets", "Vests", "Coats", "Windbreakers"],
-  Sets: ["Matching Set", "Two-Piece Set", "Three-Piece Set"],
-  Accessories: ["Bags", "Hats", "Socks", "Headbands", "Belts"],
-  Footwear: ["Sneakers", "Sandals", "Slippers", "Boots"],
+const CATEGORY_MAP: Record<string, Record<string, string[]>> = {
+  women: {
+    Bottoms: ["Leggings", "Shorts", "Skirts", "Sport Pants", "Pants", "Capris"],
+    Tops: [
+      "Bras",
+      "Tank Tops",
+      "Short Sleeve Tops",
+      "Long Sleeve Tops",
+      "Crop Tops",
+    ],
+    Accessories: ["Socks & Sandals", "Caps", "Bags"],
+    Outerwear: ["Sweatshirts & Hoodies", "Coats & Jackets"],
+    Dresses: ["Dresses"],
+  },
+  men: {
+    Bottoms: ["Shorts", "Pants", "Sport Pants"],
+    Tops: ["Short Sleeve Tops", "Tank Tops", "Long Sleeve Tops"],
+    Accessories: ["Caps & Hats", "Socks & Sandals"],
+    Outerwear: ["Sweatshirts & Hoodies", "Jackets & Coats"],
+  },
+  general: {
+    Footwear: ["Casual", "Sport"],
+  },
 };
-
-const CATEGORY_GROUPS = Object.keys(CATEGORY_MAP);
 
 // ─── Field ────────────────────────────────────────────────────────────────────
 
@@ -348,10 +353,26 @@ export default function AddProductScreen() {
 
   const [addStock] = useMutation(ADD_STOCK);
 
+  // Derive category groups from selected gender + general
+  const genderMap = gender === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
+  const categoryGroups = Object.keys({ ...genderMap, ...CATEGORY_MAP.general });
+
   // Subcategory options based on selected category group
+  const fullMap = { ...genderMap, ...CATEGORY_MAP.general };
   const subcategoryOptions: string[] = categoryGroup
-    ? (CATEGORY_MAP[categoryGroup] ?? [])
+    ? (fullMap[categoryGroup] ?? [])
     : [];
+
+  // When gender changes, reset category + subcategory if no longer valid
+  const handleGenderChange = (g: Gender) => {
+    setGender(g);
+    const newMap = g === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
+    const newFull = { ...newMap, ...CATEGORY_MAP.general };
+    if (categoryGroup && !newFull[categoryGroup]) {
+      setCategoryGroup("");
+      setSubcategory("");
+    }
+  };
 
   // When category group changes, reset subcategory
   const handleCategoryGroupSelect = (v: string) => {
@@ -708,7 +729,7 @@ export default function AddProductScreen() {
                   return (
                     <TouchableOpacity
                       key={g.value}
-                      onPress={() => setGender(g.value)}
+                      onPress={() => handleGenderChange(g.value)}
                       activeOpacity={0.7}
                       style={{
                         flex: 1,
@@ -741,7 +762,7 @@ export default function AddProductScreen() {
               label="Category Group"
               value={categoryGroup}
               onSelect={handleCategoryGroupSelect}
-              options={CATEGORY_GROUPS}
+              options={categoryGroups}
               placeholder="e.g. Tops"
               C={C}
             />

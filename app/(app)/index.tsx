@@ -30,7 +30,29 @@ const LIST_CUSTOMER_NAMES = gql`
   }
 `;
 
+// ─── Revenue stats query ─────────────────────────────────────────────────────
+
+const REVENUE_STATS = gql`
+  query RevenueStats {
+    revenueStats(months: 3) {
+      year
+      month
+      label
+      revenue
+      orderCount
+    }
+  }
+`;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type MonthRevenue = {
+  year: number;
+  month: number;
+  label: string;
+  revenue: number;
+  orderCount: number;
+};
 
 type Order = {
   id: string;
@@ -338,6 +360,144 @@ function QuickAction({
   );
 }
 
+// ─── Revenue Chart ────────────────────────────────────────────────────────────
+
+function RevenueChart({ data, C }: { data: MonthRevenue[]; C: ThemeColors }) {
+  if (!data.length) return null;
+
+  const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
+  const currentMonth = data[data.length - 1];
+  const prevMonth = data[data.length - 2];
+
+  const pctChange =
+    prevMonth && prevMonth.revenue > 0
+      ? ((currentMonth.revenue - prevMonth.revenue) / prevMonth.revenue) * 100
+      : null;
+
+  const isUp = pctChange !== null && pctChange >= 0;
+
+  return (
+    <View
+      style={{
+        backgroundColor: C.surface,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: C.border,
+        padding: 16,
+        marginBottom: 28,
+      }}
+    >
+      {/* Header */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 16,
+        }}
+      >
+        <View>
+          <Text style={{ fontSize: 22, fontWeight: "800", color: C.accent }}>
+            {currencyFormatter.format(currentMonth.revenue)}
+          </Text>
+          <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}>
+            This month · {currentMonth.orderCount}{" "}
+            {currentMonth.orderCount === 1 ? "order" : "orders"}
+          </Text>
+        </View>
+        {pctChange !== null && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: isUp ? C.successBg : C.alertBg,
+              borderRadius: 8,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+            }}
+          >
+            <Ionicons
+              name={isUp ? "trending-up" : "trending-down"}
+              size={13}
+              color={isUp ? C.success : C.alert}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "700",
+                color: isUp ? C.success : C.alert,
+              }}
+            >
+              {isUp ? "+" : ""}
+              {pctChange.toFixed(0)}%
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Bars */}
+      <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+        {data.map((item, i) => {
+          const isCurrentMonth = i === data.length - 1;
+          const barHeight = Math.max(
+            4,
+            Math.round((item.revenue / maxRevenue) * 80),
+          );
+          return (
+            <View
+              key={`${item.year}-${item.month}`}
+              style={{
+                flex: 1,
+                alignItems: "center",
+                marginRight: i < data.length - 1 ? 8 : 0,
+              }}
+            >
+              {/* Revenue label above bar */}
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontWeight: "600",
+                  color: isCurrentMonth ? C.accent : C.textTertiary,
+                  marginBottom: 4,
+                  textAlign: "center",
+                }}
+              >
+                {item.revenue > 0
+                  ? currencyFormatter.format(item.revenue).replace("$", "$")
+                  : "—"}
+              </Text>
+
+              {/* Bar */}
+              <View
+                style={{
+                  width: "100%",
+                  height: barHeight,
+                  borderRadius: 6,
+                  backgroundColor: isCurrentMonth ? C.accent : C.accentMuted,
+                }}
+              />
+
+              {/* Month label */}
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: isCurrentMonth ? "700" : "500",
+                  color: isCurrentMonth ? C.textPrimary : C.textTertiary,
+                  marginTop: 6,
+                  textAlign: "center",
+                }}
+              >
+                {item.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Dashboard Screen ─────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
@@ -376,6 +536,10 @@ export default function DashboardScreen() {
     customers: { customers: { id: string; name: string }[] };
   }>(LIST_CUSTOMER_NAMES);
 
+  const { data: revenueStatsData, refetch: refetchRevenueStats } = useQuery<{
+    revenueStats: MonthRevenue[];
+  }>(REVENUE_STATS);
+
   const customerNameMap = new Map(
     (customerNamesData?.customers.customers ?? []).map((c) => [c.id, c.name]),
   );
@@ -387,12 +551,6 @@ export default function DashboardScreen() {
   const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
   const lowStockCount = lowStockData?.lowStock.length ?? 0;
 
-  // Revenue this month — from all recent orders (last 20 covers most boutique volumes)
-  const monthRevenue =
-    recentData?.orders
-      .filter((o) => isThisMonth(o.createdAt))
-      .reduce((sum, o) => sum + o.total, 0) ?? 0;
-
   const recentOrders = recentData?.orders.slice(0, 5) ?? [];
 
   const handleRefresh = async () => {
@@ -402,6 +560,7 @@ export default function DashboardScreen() {
       refetchRecent(),
       refetchLowStock(),
       refetchCustomers(),
+      refetchRevenueStats(),
     ]);
     setRefreshing(false);
   };
@@ -493,7 +652,7 @@ export default function DashboardScreen() {
           {/* ── Overview ──────────────────────────────────────────────── */}
           <SectionHeader title="Overview" C={C} />
 
-          {/* Row 1: Pending + Today */}
+          {/* Row 1: Pending + Low Stock */}
           <View style={{ flexDirection: "row", marginBottom: 10 }}>
             <StatCard
               label="Pending"
@@ -507,25 +666,6 @@ export default function DashboardScreen() {
               C={C}
             />
             <View style={{ width: 10 }} />
-            <StatCard
-              label="Today"
-              value={todayCount}
-              subtitle={
-                todayCount > 0
-                  ? currencyFormatter.format(todayRevenue)
-                  : "No orders yet"
-              }
-              accent={C.today}
-              bg={C.todayBg}
-              icon="today-outline"
-              loading={recentLoading}
-              onPress={() => router.navigate("/orders")}
-              C={C}
-            />
-          </View>
-
-          {/* Row 2: Low Stock + Revenue this month */}
-          <View style={{ flexDirection: "row", marginBottom: 28 }}>
             <StatCard
               label="Low Stock"
               value={lowStockCount}
@@ -543,19 +683,30 @@ export default function DashboardScreen() {
               onPress={() => router.navigate("/inventory")}
               C={C}
             />
-            <View style={{ width: 10 }} />
+          </View>
+
+          {/* Row 2: Today */}
+          <View style={{ flexDirection: "row", marginBottom: 28 }}>
             <StatCard
-              label="This Month"
-              value={currencyFormatter.format(monthRevenue)}
-              subtitle="Revenue"
-              accent={C.accent}
-              bg={C.accentMuted}
-              icon="trending-up-outline"
+              label="Today"
+              value={todayCount}
+              subtitle={
+                todayCount > 0
+                  ? currencyFormatter.format(todayRevenue)
+                  : "No orders yet"
+              }
+              accent={C.today}
+              bg={C.todayBg}
+              icon="today-outline"
               loading={recentLoading}
               onPress={() => router.navigate("/orders")}
               C={C}
             />
           </View>
+
+          {/* Revenue chart — last 3 months */}
+          <SectionHeader title="Revenue" C={C} />
+          <RevenueChart data={revenueStatsData?.revenueStats ?? []} C={C} />
 
           {/* ── Quick Actions ──────────────────────────────────────────── */}
           <SectionHeader title="Quick Actions" C={C} />
