@@ -1,6 +1,6 @@
 import { useColors } from "@/lib/hooks/useColors";
 import { Ionicons } from "@expo/vector-icons";
-import { type Href, Tabs, usePathname, useRouter } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { type ComponentProps } from "react";
 import {
   Text,
@@ -53,7 +53,7 @@ const TABS: readonly TabDef[] = [
   },
 ];
 
-function tabHref(name: TabDef["name"]): Href {
+function tabHref(name: TabDef["name"]): string {
   return name === "index" ? "/" : `/${name}`;
 }
 
@@ -75,7 +75,7 @@ function makeTabButton(tab: TabDef, tabWidth: number) {
 
     return (
       <TouchableOpacity
-        onPress={() => router.navigate(tabHref(tab.name))}
+        onPress={() => router.navigate(tabHref(tab.name) as never)}
         activeOpacity={0.75}
         style={{
           width: tabWidth,
@@ -168,28 +168,31 @@ export default function AppLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle,
-        tabBarItemStyle: {
-          padding: 0,
-          margin: 0,
-          height: TAB_BAR_HEIGHT,
-          width: tabWidth,
-        },
-      }}
-    >
-      {TABS.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            tabBarButton: makeTabButton(tab, tabWidth),
-          }}
-        />
-      ))}
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle,
+          tabBarItemStyle: {
+            padding: 0,
+            margin: 0,
+            height: TAB_BAR_HEIGHT,
+            width: tabWidth,
+          },
+          sceneStyle: { backgroundColor: "transparent" },
+        }}
+      >
+        {TABS.map((tab) => (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              tabBarButton: makeTabButton(tab, tabWidth),
+            }}
+          />
+        ))}
+      </Tabs>
+    </View>
   );
 }
