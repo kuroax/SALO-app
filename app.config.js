@@ -32,6 +32,9 @@ module.exports = {
       supportsTablet: false,
       bundleIdentifier: "com.salo.app",
       buildNumber: "1",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
 
     android: {
