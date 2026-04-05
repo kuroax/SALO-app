@@ -150,7 +150,7 @@ function getNoteKindColor(kind: NoteKind, C: ThemeColors): string {
     case "system":
       return C.accent;
     case "customer_message":
-      return "#3b82f6";
+      return C.today;
   }
 }
 

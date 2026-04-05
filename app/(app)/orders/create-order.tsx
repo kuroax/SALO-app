@@ -725,7 +725,6 @@ export default function CreateOrderScreen() {
             }}
           >
             <TouchableOpacity onPress={closeCustomerPicker} activeOpacity={0.7}>
-              {/* ← fix: was C.textSecondary, now C.accent */}
               <Text
                 style={{ fontSize: 15, color: C.accent, fontWeight: "500" }}
               >

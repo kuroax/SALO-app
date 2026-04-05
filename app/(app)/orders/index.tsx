@@ -366,7 +366,7 @@ const LIMIT = 20;
 export default function OrdersScreen() {
   const scheme = useScheme();
   const C = useColors();
-  const router = useRouter(); // ← fix: router now in scope for the FAB
+  const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");

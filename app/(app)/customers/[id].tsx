@@ -68,20 +68,33 @@ type Order = {
 
 type ListOrdersData = { orders: Order[] };
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: "#f59e0b",
-  confirmed: "#6366f1",
-  processing: "#3b82f6",
-  shipped: "#8b5cf6",
-  delivered: "#10b981",
-  cancelled: "#ef4444",
-};
+function getStatusColor(status: OrderStatus, C: ThemeColors): string {
+  switch (status) {
+    case "pending":
+      return C.pending;
+    case "confirmed":
+      return C.today;
+    case "processing":
+      return C.today;
+    case "shipped":
+      return C.accent;
+    case "delivered":
+      return C.success;
+    case "cancelled":
+      return C.alert;
+  }
+}
 
-const PAYMENT_COLORS: Record<PaymentStatus, string> = {
-  unpaid: "#ef4444",
-  partial: "#f59e0b",
-  paid: "#10b981",
-};
+function getPaymentColor(status: PaymentStatus, C: ThemeColors): string {
+  switch (status) {
+    case "unpaid":
+      return C.alert;
+    case "partial":
+      return C.pending;
+    case "paid":
+      return C.success;
+  }
+}
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -742,8 +755,8 @@ export default function CustomerDetailScreen() {
               </View>
             ) : (
               customerOrders.map((order, i) => {
-                const statusColor = STATUS_COLORS[order.status];
-                const paymentColor = PAYMENT_COLORS[order.paymentStatus];
+                const statusColor = getStatusColor(order.status, C);
+                const paymentColor = getPaymentColor(order.paymentStatus, C);
                 const itemCount = order.items.reduce(
                   (sum, it) => sum + it.quantity,
                   0,

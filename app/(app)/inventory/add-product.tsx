@@ -39,7 +39,10 @@ async function uploadToCloudinary(uri: string): Promise<string> {
   );
   if (!res.ok) throw new Error("Image upload failed");
   const data = await res.json();
-  return data.secure_url as string;
+  if (!data.secure_url || typeof data.secure_url !== "string") {
+    throw new Error("Image upload failed: invalid response from server");
+  }
+  return data.secure_url;
 }
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────

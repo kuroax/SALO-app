@@ -35,8 +35,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/(app)");
     }
 
-    // TODO: treat stored token as provisional — add forced logout on
-    // unrecoverable 401 once tokenVersion is implemented in backend.
   }, [token, isHydrated, segments, router]);
 
   // Block render until SecureStore has been read.
