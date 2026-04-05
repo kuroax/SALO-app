@@ -5,7 +5,6 @@ import { ApolloProvider } from "@apollo/client/react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import "../global.css";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
@@ -34,7 +33,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (token && inAuthGroup) {
       router.replace("/(app)");
     }
-
   }, [token, isHydrated, segments, router]);
 
   // Block render until SecureStore has been read.
