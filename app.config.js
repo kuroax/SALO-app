@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: "com.salo.app",
-      buildNumber: "1",
+      buildNumber: "2",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
