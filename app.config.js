@@ -34,6 +34,8 @@ module.exports = {
       buildNumber: "3",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSPhotoLibraryUsageDescription:
+          "SALO uses your photo library to let you select and upload product images when adding or editing items in the boutique inventory.",
       },
     },
 
