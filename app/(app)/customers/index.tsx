@@ -389,19 +389,25 @@ function AddCustomerModal({
     if (!phone.trim() && !instagram.trim())
       return Alert.alert("Required", "Phone or Instagram handle is required.");
 
-    // Normalize phone
-    let normalizedPhone: string | null = null;
+    // Normalize phone — undefined if empty (backend rejects null for optional strings)
+    let normalizedPhone: string | undefined = undefined;
     if (phone.trim()) {
       const digits = phone.replace(/\D/g, "");
-      normalizedPhone = digits.startsWith("+") ? phone.trim() : `+52${digits}`;
+      normalizedPhone = phone.trim().startsWith("+")
+        ? phone.trim()
+        : `+52${digits}`;
     }
+
+    const normalizedInstagram = instagram.trim() || undefined;
 
     createCustomer({
       variables: {
         input: {
           name: name.trim(),
-          phone: normalizedPhone,
-          instagramHandle: instagram.trim() || null,
+          ...(normalizedPhone !== undefined && { phone: normalizedPhone }),
+          ...(normalizedInstagram !== undefined && {
+            instagramHandle: normalizedInstagram,
+          }),
           contactChannel: channel,
           tags: [],
         },
