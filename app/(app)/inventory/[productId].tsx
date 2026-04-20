@@ -30,6 +30,7 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
+const MAX_IMAGES = 5;
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 type Size = (typeof SIZES)[number];
 const DEFAULT_COLOR = "default";
@@ -376,6 +377,133 @@ function VariantRow({
   );
 }
 
+// ─── Edit Image Grid ──────────────────────────────────────────────────────────
+
+function EditImageGrid({
+  images,
+  onAdd,
+  onRemove,
+  C,
+}: {
+  images: string[];
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  C: ThemeColors;
+}) {
+  const canAdd = images.length < MAX_IMAGES;
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 1,
+            color: C.textTertiary,
+            textTransform: "uppercase",
+          }}
+        >
+          Product Images
+        </Text>
+        <Text style={{ fontSize: 11, color: C.textTertiary }}>
+          {images.length}/{MAX_IMAGES}
+        </Text>
+      </View>
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {images.map((uri, index) => (
+          <View
+            key={index}
+            style={{
+              width: "30%",
+              aspectRatio: 1,
+              marginRight: index % 3 !== 2 ? "5%" : 0,
+              marginBottom: 10,
+              borderRadius: 12,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: C.border,
+            }}
+          >
+            <Image
+              source={{ uri }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              onPress={() => onRemove(index)}
+              activeOpacity={0.8}
+              style={{
+                position: "absolute",
+                top: 5,
+                right: 5,
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={13} color="#fff" />
+            </TouchableOpacity>
+            {index === 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 5,
+                  left: 5,
+                  backgroundColor: C.accent,
+                  borderRadius: 4,
+                  paddingHorizontal: 5,
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>
+                  MAIN
+                </Text>
+              </View>
+            )}
+          </View>
+        ))}
+
+        {canAdd && (
+          <TouchableOpacity
+            onPress={onAdd}
+            activeOpacity={0.8}
+            style={{
+              width: "30%",
+              aspectRatio: 1,
+              marginRight: images.length % 3 !== 2 ? "5%" : 0,
+              marginBottom: 10,
+              borderRadius: 12,
+              borderWidth: 1.5,
+              borderColor: C.border,
+              borderStyle: "dashed",
+              backgroundColor: C.surface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="add" size={24} color={C.accent} />
+            <Text style={{ fontSize: 10, color: C.textTertiary, marginTop: 3 }}>
+              Add photo
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // ─── Product Detail Screen ────────────────────────────────────────────────────
 
 export default function ProductDetailScreen() {
@@ -395,8 +523,8 @@ export default function ProductDetailScreen() {
   const [editCategoryGroup, setEditCategoryGroup] = useState("");
   const [editSubcategory, setEditSubcategory] = useState("");
   const [editSizes, setEditSizes] = useState<Size[]>([]);
-  const [editImageUri, setEditImageUri] = useState<string | null>(null);
-  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  // editImages holds either existing Cloudinary URLs or newly picked local URIs
+  const [editImages, setEditImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const validId =
@@ -446,7 +574,13 @@ export default function ProductDetailScreen() {
 
   const isLoading = adding || removing;
   const product = productData?.product;
-  const items = inventoryData?.productInventory ?? [];
+
+  const activeSizes = new Set(
+    (product?.variants ?? []).map((v) => v.size.toUpperCase()),
+  );
+  const items = (inventoryData?.productInventory ?? []).filter((item) =>
+    activeSizes.has(item.size.toUpperCase()),
+  );
   const lowCount = items.filter((i) => i.isLowStock).length;
 
   const handleAdd = (item: InventoryItem) => {
@@ -489,8 +623,7 @@ export default function ProductDetailScreen() {
         .map((v) => v.size.toUpperCase())
         .filter((s): s is Size => SIZES.includes(s as Size)),
     );
-    setEditImageUri(null);
-    setEditImageUrl(product.images?.[0] ?? null);
+    setEditImages(product.images ?? []);
     setEditVisible(true);
   };
 
@@ -503,6 +636,10 @@ export default function ProductDetailScreen() {
   };
 
   const pickEditImage = async () => {
+    if (editImages.length >= MAX_IMAGES) {
+      Alert.alert("Limit reached", `You can add up to ${MAX_IMAGES} photos.`);
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission required", "Allow access to your photo library.");
@@ -515,9 +652,12 @@ export default function ProductDetailScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setEditImageUri(result.assets[0].uri);
-      setEditImageUrl(result.assets[0].uri);
+      setEditImages((prev) => [...prev, result.assets[0].uri]);
     }
+  };
+
+  const removeEditImage = (index: number) => {
+    setEditImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUpdate = async () => {
@@ -532,18 +672,29 @@ export default function ProductDetailScreen() {
     if (!editPrice.trim() || isNaN(parseFloat(editPrice)))
       return Alert.alert("Invalid", "Enter a valid price.");
 
-    let images: string[] | undefined;
-    if (editImageUri) {
+    // Separate existing Cloudinary URLs from newly picked local URIs
+    const existingUrls = editImages.filter((img) => img.startsWith("http"));
+    const newLocalUris = editImages.filter((img) => !img.startsWith("http"));
+
+    let uploadedUrls: string[] = [];
+    if (newLocalUris.length > 0) {
       try {
         setUploading(true);
-        images = [await uploadToCloudinary(editImageUri)];
+        uploadedUrls = await Promise.all(newLocalUris.map(uploadToCloudinary));
       } catch {
-        Alert.alert("Upload failed", "Could not upload image.");
+        Alert.alert("Upload failed", "Could not upload one or more images.");
         return;
       } finally {
         setUploading(false);
       }
     }
+
+    // Reconstruct final images array preserving original order
+    const finalImages = editImages.map((img) => {
+      if (img.startsWith("http")) return img;
+      const localIndex = newLocalUris.indexOf(img);
+      return uploadedUrls[localIndex];
+    });
 
     updateProduct({
       variables: {
@@ -555,11 +706,8 @@ export default function ProductDetailScreen() {
           price: parseFloat(editPrice),
           categoryGroup: editCategoryGroup.trim(),
           subcategory: editSubcategory.trim(),
-          variants: editSizes.map((size) => ({
-            size,
-            color: DEFAULT_COLOR,
-          })),
-          ...(images ? { images } : {}),
+          variants: editSizes.map((size) => ({ size, color: DEFAULT_COLOR })),
+          images: finalImages,
         },
       },
     });
@@ -594,6 +742,8 @@ export default function ProductDetailScreen() {
       </View>
     );
   }
+
+  const productImages = product?.images ?? [];
 
   return (
     <>
@@ -633,61 +783,74 @@ export default function ProductDetailScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Product image + name */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 16,
-            }}
-          >
-            <View
+          {/* Product name + brand */}
+          <View style={{ marginBottom: 16 }}>
+            <Text
               style={{
-                width: 72,
-                height: 72,
-                borderRadius: 14,
-                backgroundColor: C.surface,
-                borderWidth: 1,
-                borderColor: C.border,
-                overflow: "hidden",
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 16,
+                fontSize: 22,
+                fontWeight: "800",
+                color: C.textPrimary,
+                letterSpacing: -0.5,
               }}
+              numberOfLines={2}
             >
-              {product?.images?.[0] ? (
+              {product?.name ?? productName ?? "Product"}
+            </Text>
+            <Text
+              style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
+            >
+              {product?.brand}
+            </Text>
+          </View>
+
+          {/* ── Image gallery ────────────────────────────────────── */}
+          {productImages.length > 0 && (
+            <View style={{ marginBottom: 16 }}>
+              {/* Main image */}
+              <View
+                style={{
+                  width: "100%",
+                  aspectRatio: 1,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  borderWidth: 1,
+                  borderColor: C.border,
+                  marginBottom: 8,
+                }}
+              >
                 <Image
-                  source={{ uri: product.images[0] }}
+                  source={{ uri: productImages[0] }}
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                 />
-              ) : (
-                <Ionicons
-                  name="cube-outline"
-                  size={30}
-                  color={C.textTertiary}
-                />
+              </View>
+              {/* Thumbnail strip */}
+              {productImages.length > 1 && (
+                <View style={{ flexDirection: "row" }}>
+                  {productImages.slice(1).map((uri, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        width: "18%",
+                        aspectRatio: 1,
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: C.border,
+                        marginRight: i < productImages.length - 2 ? "2.5%" : 0,
+                      }}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={{ width: "100%", height: "100%" }}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 22,
-                  fontWeight: "800",
-                  color: C.textPrimary,
-                  letterSpacing: -0.5,
-                }}
-                numberOfLines={2}
-              >
-                {product?.name ?? productName ?? "Product"}
-              </Text>
-              <Text
-                style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
-              >
-                {product?.brand}
-              </Text>
-            </View>
-          </View>
+          )}
 
           {/* Action buttons */}
           <View style={{ flexDirection: "row" }}>
@@ -886,7 +1049,6 @@ export default function ProductDetailScreen() {
         presentationStyle="pageSheet"
       >
         <View style={{ flex: 1, backgroundColor: C.background }}>
-          {/* Modal header */}
           <View
             style={{
               flexDirection: "row",
@@ -938,70 +1100,13 @@ export default function ProductDetailScreen() {
           <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
           >
-            {/* Image */}
-            <TouchableOpacity
-              onPress={pickEditImage}
-              activeOpacity={0.8}
-              style={{
-                height: 140,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: editImageUrl ? C.accent : C.border,
-                borderStyle: editImageUrl ? "solid" : "dashed",
-                backgroundColor: C.surface,
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                marginBottom: 20,
-              }}
-            >
-              {editImageUrl ? (
-                <>
-                  <Image
-                    source={{ uri: editImageUrl }}
-                    style={{ width: "100%", height: "100%" }}
-                    resizeMode="cover"
-                  />
-                  <View
-                    style={{
-                      position: "absolute",
-                      bottom: 8,
-                      right: 8,
-                      backgroundColor: C.accent,
-                      borderRadius: 16,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      flexDirection: "row",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Ionicons
-                      name="pencil"
-                      size={11}
-                      color={C.background}
-                      style={{ marginRight: 3 }}
-                    />
-                    <Text
-                      style={{ fontSize: 11, fontWeight: "700", color: C.background }}
-                    >
-                      Change
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <View style={{ alignItems: "center" }}>
-                  <Ionicons
-                    name="camera-outline"
-                    size={24}
-                    color={C.accent}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <Text style={{ fontSize: 13, color: C.textSecondary }}>
-                    Tap to upload image
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {/* ── Multi-image grid ─────────────────────────────────── */}
+            <EditImageGrid
+              images={editImages}
+              onAdd={pickEditImage}
+              onRemove={removeEditImage}
+              C={C}
+            />
 
             <EditField
               label="Name"
@@ -1056,12 +1161,7 @@ export default function ProductDetailScreen() {
               >
                 Available Sizes
               </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                }}
-              >
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                 {SIZES.map((s) => {
                   const selected = editSizes.includes(s);
                   return (

@@ -21,6 +21,10 @@ import {
   View,
 } from "react-native";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_IMAGES = 5;
+
 // ─── Cloudinary ───────────────────────────────────────────────────────────────
 
 const CLOUD_NAME = "dt4j7wevk";
@@ -179,7 +183,6 @@ function SearchableSelect({
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
 
-  // Sync query when value is cleared externally (e.g. categoryGroup change resets subcategory)
   useEffect(() => {
     if (value === "") setQuery("");
   }, [value]);
@@ -187,26 +190,23 @@ function SearchableSelect({
   const filtered = options.filter((o) =>
     o.toLowerCase().includes(query.toLowerCase()),
   );
-
   const exactMatch = options.some(
     (o) => o.toLowerCase() === query.trim().toLowerCase(),
   );
   const showCustomOption = query.trim().length > 0 && !exactMatch;
+  const showDropdown =
+    open && !disabled && (filtered.length > 0 || showCustomOption);
 
   const handleSelect = (v: string) => {
     setQuery(v);
     onSelect(v);
     setOpen(false);
   };
-
   const handleChangeText = (t: string) => {
     setQuery(t);
     onSelect(t);
     setOpen(true);
   };
-
-  const showDropdown =
-    open && !disabled && (filtered.length > 0 || showCustomOption);
 
   return (
     <View style={{ marginBottom: 16 }}>
@@ -222,8 +222,6 @@ function SearchableSelect({
       >
         {label}
       </Text>
-
-      {/* Input row */}
       <TouchableOpacity
         activeOpacity={1}
         onPress={() => {
@@ -264,8 +262,6 @@ function SearchableSelect({
           color={C.textTertiary}
         />
       </TouchableOpacity>
-
-      {/* Dropdown list */}
       {showDropdown && (
         <View
           style={{
@@ -300,8 +296,6 @@ function SearchableSelect({
               )}
             </TouchableOpacity>
           ))}
-
-          {/* Custom option */}
           {showCustomOption && (
             <TouchableOpacity
               onPress={() => handleSelect(query.trim())}
@@ -332,6 +326,142 @@ function SearchableSelect({
   );
 }
 
+// ─── Image Grid ───────────────────────────────────────────────────────────────
+
+function ImageGrid({
+  images,
+  onAdd,
+  onRemove,
+  C,
+}: {
+  images: string[];
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  C: ThemeColors;
+}) {
+  const canAdd = images.length < MAX_IMAGES;
+
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 1,
+            color: C.textTertiary,
+            textTransform: "uppercase",
+          }}
+        >
+          Product Images
+        </Text>
+        <Text style={{ fontSize: 11, color: C.textTertiary }}>
+          {images.length}/{MAX_IMAGES}
+        </Text>
+      </View>
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {images.map((uri, index) => (
+          <View
+            key={index}
+            style={{
+              width: "30%",
+              aspectRatio: 1,
+              marginRight: index % 3 !== 2 ? "5%" : 0,
+              marginBottom: 10,
+              borderRadius: 12,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: C.border,
+            }}
+          >
+            <Image
+              source={{ uri }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+            {/* Remove button */}
+            <TouchableOpacity
+              onPress={() => onRemove(index)}
+              activeOpacity={0.8}
+              style={{
+                position: "absolute",
+                top: 5,
+                right: 5,
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={13} color="#fff" />
+            </TouchableOpacity>
+            {/* Primary badge */}
+            {index === 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 5,
+                  left: 5,
+                  backgroundColor: C.accent,
+                  borderRadius: 4,
+                  paddingHorizontal: 5,
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>
+                  MAIN
+                </Text>
+              </View>
+            )}
+          </View>
+        ))}
+
+        {/* Add button */}
+        {canAdd && (
+          <TouchableOpacity
+            onPress={onAdd}
+            activeOpacity={0.8}
+            style={{
+              width: "30%",
+              aspectRatio: 1,
+              marginRight: images.length % 3 !== 2 ? "5%" : 0,
+              marginBottom: 10,
+              borderRadius: 12,
+              borderWidth: 1.5,
+              borderColor: C.border,
+              borderStyle: "dashed",
+              backgroundColor: C.surface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="add" size={24} color={C.accent} />
+            <Text style={{ fontSize: 10, color: C.textTertiary, marginTop: 3 }}>
+              Add photo
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {images.length === 0 && (
+        <Text style={{ fontSize: 12, color: C.textTertiary, marginTop: 4 }}>
+          Add up to {MAX_IMAGES} photos. The first one will be the main image.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 // ─── Add Product Screen ───────────────────────────────────────────────────────
 
 export default function AddProductScreen() {
@@ -347,7 +477,7 @@ export default function AddProductScreen() {
   const [categoryGroup, setCategoryGroup] = useState("");
   const [subcategory, setSubcategory] = useState("");
   const [sizeStocks, setSizeStocks] = useState<SizeStock[]>([]);
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const [createProduct, { loading: creating }] = useMutation<{
@@ -356,17 +486,13 @@ export default function AddProductScreen() {
 
   const [addStock] = useMutation(ADD_STOCK);
 
-  // Derive category groups from selected gender + general
   const genderMap = gender === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
   const categoryGroups = Object.keys({ ...genderMap, ...CATEGORY_MAP.general });
-
-  // Subcategory options based on selected category group
   const fullMap = { ...genderMap, ...CATEGORY_MAP.general };
   const subcategoryOptions: string[] = categoryGroup
     ? (fullMap[categoryGroup] ?? [])
     : [];
 
-  // When gender changes, reset category + subcategory if no longer valid
   const handleGenderChange = (g: Gender) => {
     setGender(g);
     const newMap = g === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
@@ -377,7 +503,6 @@ export default function AddProductScreen() {
     }
   };
 
-  // When category group changes, reset subcategory
   const handleCategoryGroupSelect = (v: string) => {
     setCategoryGroup(v);
     setSubcategory("");
@@ -386,6 +511,10 @@ export default function AddProductScreen() {
   // ── Image picker ──────────────────────────────────────────────────────────
 
   const pickImage = async () => {
+    if (imageUris.length >= MAX_IMAGES) {
+      Alert.alert("Limit reached", `You can add up to ${MAX_IMAGES} photos.`);
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission required", "Allow access to your photo library.");
@@ -398,8 +527,12 @@ export default function AddProductScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      setImageUris((prev) => [...prev, result.assets[0].uri]);
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ── Size toggle ───────────────────────────────────────────────────────────
@@ -445,14 +578,14 @@ export default function AddProductScreen() {
       return Alert.alert("Required", "Subcategory is required.");
 
     let images: string[] = [];
-    if (imageUri) {
+    if (imageUris.length > 0) {
       try {
         setUploading(true);
-        images = [await uploadToCloudinary(imageUri)];
+        images = await Promise.all(imageUris.map(uploadToCloudinary));
       } catch {
         Alert.alert(
           "Upload failed",
-          "Could not upload image. Please try again.",
+          "Could not upload one or more images. Please try again.",
         );
         return;
       } finally {
@@ -500,16 +633,15 @@ export default function AddProductScreen() {
             }),
           ),
         );
+        router.replace({
+          pathname: "/inventory/[productId]",
+          params: { productId, productName },
+        });
       }
-
-      Alert.alert(
-        "Product created",
-        `"${productName}" was added to inventory.`,
-        [{ text: "Done", onPress: () => router.back() }],
-      );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
-      Alert.alert("Error", msg);
+      const message =
+        err instanceof Error ? err.message : "Something went wrong.";
+      Alert.alert("Error", message);
     }
   };
 
@@ -572,113 +704,13 @@ export default function AddProductScreen() {
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
-            {/* ── Image picker ──────────────────────────────────────── */}
-            <View style={{ marginBottom: 24 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                Product Image
-              </Text>
-              <TouchableOpacity
-                onPress={pickImage}
-                activeOpacity={0.8}
-                style={{
-                  height: 160,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: imageUri ? C.accent : C.border,
-                  borderStyle: imageUri ? "solid" : "dashed",
-                  backgroundColor: C.surface,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                }}
-              >
-                {imageUri ? (
-                  <>
-                    <Image
-                      source={{ uri: imageUri }}
-                      style={{ width: "100%", height: "100%" }}
-                      resizeMode="cover"
-                    />
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 10,
-                        right: 10,
-                        backgroundColor: C.accent,
-                        borderRadius: 20,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        flexDirection: "row",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Ionicons
-                        name="pencil"
-                        size={12}
-                        color={C.background}
-                        style={{ marginRight: 4 }}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: C.background,
-                        }}
-                      >
-                        Change
-                      </Text>
-                    </View>
-                  </>
-                ) : (
-                  <View style={{ alignItems: "center" }}>
-                    <View
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 14,
-                        backgroundColor: C.accentMuted,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Ionicons
-                        name="camera-outline"
-                        size={24}
-                        color={C.accent}
-                      />
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: C.textPrimary,
-                      }}
-                    >
-                      Upload Photo
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: C.textTertiary,
-                        marginTop: 3,
-                      }}
-                    >
-                      Tap to select from library
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+            {/* ── Image grid ────────────────────────────────────────── */}
+            <ImageGrid
+              images={imageUris}
+              onAdd={pickImage}
+              onRemove={removeImage}
+              C={C}
+            />
 
             {/* ── Basic info ────────────────────────────────────────── */}
             <Field
@@ -795,8 +827,6 @@ export default function AddProductScreen() {
               >
                 Available Sizes
               </Text>
-
-              {/* Size chips */}
               <View
                 style={{
                   flexDirection: "row",
@@ -836,7 +866,6 @@ export default function AddProductScreen() {
                 })}
               </View>
 
-              {/* Stock per selected size */}
               {sizeStocks.length === 0 ? (
                 <View
                   style={{
@@ -898,10 +927,7 @@ export default function AddProductScreen() {
                           {s.size}
                         </Text>
                         <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                          }}
+                          style={{ flexDirection: "row", alignItems: "center" }}
                         >
                           <TouchableOpacity
                             onPress={() => updateQty(s.size, -1)}
@@ -993,14 +1019,10 @@ export default function AddProductScreen() {
                 />
               )}
               <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: "700",
-                  color: C.background,
-                }}
+                style={{ fontSize: 15, fontWeight: "700", color: C.background }}
               >
                 {uploading
-                  ? "Uploading image…"
+                  ? "Uploading images…"
                   : creating
                     ? "Creating…"
                     : "Create Product"}
