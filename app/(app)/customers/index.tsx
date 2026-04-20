@@ -409,6 +409,34 @@ function Selector<T extends string>({
   );
 }
 
+// ─── Error parser ─────────────────────────────────────────────────────────────
+
+function parseCustomerError(raw: string): string {
+  try {
+    const issues = JSON.parse(raw) as { path: string[]; message: string }[];
+    if (Array.isArray(issues) && issues.length > 0) {
+      return issues
+        .map((issue) => {
+          const field = issue.path?.[0];
+          switch (field) {
+            case "phone":
+              return "A phone number is required for the selected contact channel. Please enter a valid phone number.";
+            case "instagramHandle":
+              return "An Instagram handle is required for the selected contact channel. Please enter a valid handle.";
+            case "name":
+              return "Please enter the customer's full name.";
+            default:
+              return issue.message;
+          }
+        })
+        .join("\n\n");
+    }
+  } catch {
+    // not JSON — fall through
+  }
+  return raw;
+}
+
 // ─── Add Customer Modal ───────────────────────────────────────────────────────
 
 function AddCustomerModal({
@@ -446,7 +474,8 @@ function AddCustomerModal({
       handleClose();
     },
     onError: (err) => {
-      Alert.alert("Error", err.message);
+      const friendly = parseCustomerError(err.message);
+      Alert.alert("Missing Information", friendly);
     },
   });
 
@@ -460,9 +489,26 @@ function AddCustomerModal({
   };
 
   const handleSubmit = () => {
-    if (!name.trim()) return Alert.alert("Required", "Name is required.");
-    if (!phone.trim() && !instagram.trim())
-      return Alert.alert("Required", "Phone or Instagram handle is required.");
+    if (!name.trim()) {
+      return Alert.alert(
+        "Missing Information",
+        "Please enter the customer's full name.",
+      );
+    }
+
+    if ((channel === "whatsapp" || channel === "both") && !phone.trim()) {
+      return Alert.alert(
+        "Missing Information",
+        "A phone number is required when the contact channel is WhatsApp or Both.",
+      );
+    }
+
+    if ((channel === "instagram" || channel === "both") && !instagram.trim()) {
+      return Alert.alert(
+        "Missing Information",
+        "An Instagram handle is required when the contact channel is Instagram or Both.",
+      );
+    }
 
     let normalizedPhone: string | undefined = undefined;
     if (phone.trim()) {

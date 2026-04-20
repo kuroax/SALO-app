@@ -9,6 +9,7 @@ export const CREATE_CUSTOMER = gql`
       instagramHandle
       contactChannel
       tags
+      gender
       isActive
     }
   }
@@ -25,6 +26,7 @@ export const UPDATE_CUSTOMER = gql`
       notes
       tags
       address
+      gender
       isActive
       createdAt
       updatedAt

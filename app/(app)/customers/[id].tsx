@@ -29,6 +29,7 @@ import {
 
 type ContactChannel = "whatsapp" | "instagram" | "both";
 type CustomerTag = "vip" | "wholesale" | "problematic" | "regular";
+type CustomerGender = "female" | "male" | "unknown";
 
 type Customer = {
   id: string;
@@ -39,6 +40,7 @@ type Customer = {
   notes: string | null;
   tags: CustomerTag[];
   address: string | null;
+  gender: CustomerGender;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -116,6 +118,18 @@ const ALL_TAGS: { value: CustomerTag; label: string }[] = [
   { value: "regular", label: "Regular" },
 ];
 
+const GENDERS: { value: CustomerGender; label: string }[] = [
+  { value: "female", label: "Female" },
+  { value: "male", label: "Male" },
+  { value: "unknown", label: "Unknown" },
+];
+
+const GENDER_LABELS: Record<CustomerGender, string> = {
+  female: "Female",
+  male: "Male",
+  unknown: "Unknown",
+};
+
 // ─── Style helpers ────────────────────────────────────────────────────────────
 
 function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
@@ -123,7 +137,7 @@ function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
     case "whatsapp":
       return C.success;
     case "instagram":
-      return C.accent; // no purple token; accent as stand-in
+      return C.accent;
     case "both":
       return C.today;
   }
@@ -331,6 +345,71 @@ function EditField({
   );
 }
 
+// ─── Selector ─────────────────────────────────────────────────────────────────
+
+function Selector<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  C,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  C: ThemeColors;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </Text>
+      <View style={{ flexDirection: "row" }}>
+        {options.map((opt, i) => {
+          const selected = value === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              onPress={() => onChange(opt.value)}
+              activeOpacity={0.7}
+              style={{
+                flex: 1,
+                paddingVertical: 11,
+                borderRadius: 10,
+                backgroundColor: selected ? C.accentMuted : C.surface,
+                borderWidth: 1,
+                borderColor: selected ? C.accent : C.border,
+                alignItems: "center",
+                marginRight: i < options.length - 1 ? 8 : 0,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: selected ? C.accent : C.textSecondary,
+                }}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Customer Detail Screen ───────────────────────────────────────────────────
 
 const LIST_LIMIT = 100;
@@ -351,6 +430,7 @@ export default function CustomerDetailScreen() {
   const [editTags, setEditTags] = useState<CustomerTag[]>([]);
   const [editNotes, setEditNotes] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [editGender, setEditGender] = useState<CustomerGender>("unknown");
 
   const { data: ordersData } = useQuery<ListOrdersData>(LIST_ORDERS, {
     variables: { filter: { customerId: customerId, limit: 50, skip: 0 } },
@@ -401,6 +481,7 @@ export default function CustomerDetailScreen() {
     setEditTags([...c.tags]);
     setEditNotes(c.notes ?? "");
     setEditAddress(c.address ?? "");
+    setEditGender(c.gender ?? "unknown");
     setEditVisible(true);
   };
 
@@ -429,6 +510,7 @@ export default function CustomerDetailScreen() {
           tags: editTags,
           notes: editNotes.trim() || undefined,
           address: editAddress.trim() || undefined,
+          gender: editGender,
         },
       },
     });
@@ -598,103 +680,51 @@ export default function CustomerDetailScreen() {
               justifyContent: "space-between",
             }}
           >
-            <Text
-              style={{
-                flex: 1,
-                fontSize: 22,
-                fontWeight: "800",
-                color: C.textPrimary,
-                letterSpacing: -0.5,
-                marginRight: 12,
-              }}
-              numberOfLines={1}
-            >
-              {customer.name}
-            </Text>
-            {!customer.isActive && (
-              <View
+            <View style={{ flex: 1 }}>
+              <Text
                 style={{
-                  backgroundColor: C.border,
-                  borderRadius: 6,
-                  paddingHorizontal: 8,
-                  paddingVertical: 3,
+                  fontSize: 26,
+                  fontWeight: "800",
+                  color: C.textPrimary,
+                  letterSpacing: -0.5,
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: C.textTertiary,
-                  }}
-                >
-                  Inactive
-                </Text>
+                {customer.name}
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 6,
+                }}
+              >
+                <Pill
+                  label={CHANNEL_LABELS[customer.contactChannel]}
+                  color={channelColor}
+                />
+                <View style={{ width: 8 }} />
+                <Pill
+                  label={GENDER_LABELS[customer.gender ?? "unknown"]}
+                  color={C.textSecondary}
+                />
               </View>
-            )}
-          </View>
-
-          {/* Channel badge */}
-          <View style={{ marginTop: 8 }}>
-            <Pill
-              label={CHANNEL_LABELS[customer.contactChannel]}
-              color={channelColor}
-            />
-          </View>
-
-          {/* Action buttons */}
-          <View style={{ flexDirection: "row", marginTop: 20 }}>
+            </View>
             <TouchableOpacity
               onPress={openEdit}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
               style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 10,
                 backgroundColor: C.accentMuted,
-                borderRadius: 12,
-                paddingVertical: 12,
                 borderWidth: 1,
                 borderColor: C.accent + "40",
-                marginRight: 10,
               }}
             >
-              <Ionicons
-                name="pencil-outline"
-                size={16}
-                color={C.accent}
-                style={{ marginRight: 6 }}
-              />
               <Text
-                style={{ fontSize: 14, fontWeight: "600", color: C.accent }}
+                style={{ fontSize: 13, fontWeight: "700", color: C.accent }}
               >
                 Edit
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDelete}
-              disabled={deactivating}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: C.alertBg,
-                borderRadius: 12,
-                paddingVertical: 12,
-                borderWidth: 1,
-                borderColor: C.alert + "40",
-              }}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={16}
-                color={C.alert}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={{ fontSize: 14, fontWeight: "600", color: C.alert }}>
-                {deactivating ? "Deleting…" : "Delete"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -704,61 +734,40 @@ export default function CustomerDetailScreen() {
           {/* ── Contact ─────────────────────────────────────────────── */}
           <Section title="Contact" C={C}>
             {customer.phone && (
-              <InfoRow
-                label="Phone"
-                value={customer.phone}
-                C={C}
-                last={!customer.instagramHandle && !customer.address}
-              />
+              <InfoRow label="Phone" value={customer.phone} C={C} />
             )}
             {customer.instagramHandle && (
               <InfoRow
                 label="Instagram"
                 value={`@${customer.instagramHandle}`}
                 C={C}
-                last={!customer.address}
               />
             )}
+            <InfoRow
+              label="Channel"
+              value={CHANNEL_LABELS[customer.contactChannel]}
+              C={C}
+              last={!customer.address}
+            />
             {customer.address && (
               <InfoRow label="Address" value={customer.address} C={C} last />
             )}
-            {!customer.phone &&
-              !customer.instagramHandle &&
-              !customer.address && (
-                <View style={{ padding: 16 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: C.textTertiary,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    No contact details
-                  </Text>
-                </View>
-              )}
           </Section>
 
           {/* ── Orders ──────────────────────────────────────────────── */}
           <Section title={`Orders (${customerOrders.length})`} C={C}>
             {customerOrders.length === 0 ? (
               <View style={{ padding: 16 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: C.textTertiary,
-                    fontStyle: "italic",
-                  }}
-                >
-                  No orders yet
+                <Text style={{ fontSize: 13, color: C.textTertiary }}>
+                  No orders yet.
                 </Text>
               </View>
             ) : (
-              customerOrders.map((order, i) => {
+              customerOrders.map((order) => {
                 const statusColor = getStatusColor(order.status, C);
                 const paymentColor = getPaymentColor(order.paymentStatus, C);
                 const itemCount = order.items.reduce(
-                  (sum, it) => sum + it.quantity,
+                  (sum, i) => sum + i.quantity,
                   0,
                 );
                 return (
@@ -770,19 +779,19 @@ export default function CustomerDetailScreen() {
                         params: { id: order.id },
                       })
                     }
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                     style={{
-                      padding: 14,
-                      borderBottomWidth: i < customerOrders.length - 1 ? 1 : 0,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      borderBottomWidth: 1,
                       borderBottomColor: C.border,
                     }}
                   >
                     <View
                       style={{
                         flexDirection: "row",
-                        alignItems: "center",
                         justifyContent: "space-between",
-                        marginBottom: 8,
+                        marginBottom: 6,
                       }}
                     >
                       <Text
@@ -898,6 +907,11 @@ export default function CustomerDetailScreen() {
           {/* ── Info ────────────────────────────────────────────────── */}
           <Section title="Info" C={C}>
             <InfoRow
+              label="Gender"
+              value={GENDER_LABELS[customer.gender ?? "unknown"]}
+              C={C}
+            />
+            <InfoRow
               label="Created"
               value={formatDate(customer.createdAt)}
               C={C}
@@ -914,6 +928,30 @@ export default function CustomerDetailScreen() {
               last
             />
           </Section>
+
+          {/* ── Danger zone ─────────────────────────────────────────── */}
+          <TouchableOpacity
+            onPress={handleDelete}
+            disabled={deactivating}
+            activeOpacity={0.7}
+            style={{
+              paddingVertical: 14,
+              borderRadius: 12,
+              backgroundColor: C.alert + "15",
+              borderWidth: 1,
+              borderColor: C.alert + "40",
+              alignItems: "center",
+              marginTop: 8,
+            }}
+          >
+            {deactivating ? (
+              <ActivityIndicator size="small" color={C.alert} />
+            ) : (
+              <Text style={{ fontSize: 14, fontWeight: "700", color: C.alert }}>
+                Delete Customer
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -974,7 +1012,7 @@ export default function CustomerDetailScreen() {
           </View>
 
           <ScrollView
-            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
           >
             <EditField
               label="Name"
@@ -995,6 +1033,15 @@ export default function CustomerDetailScreen() {
               value={editInstagram}
               onChangeText={setEditInstagram}
               placeholder="handle"
+              C={C}
+            />
+
+            {/* Gender selector */}
+            <Selector
+              label="Gender"
+              options={GENDERS}
+              value={editGender}
+              onChange={setEditGender}
               C={C}
             />
 

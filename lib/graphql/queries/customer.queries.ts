@@ -10,6 +10,7 @@ export const LIST_CUSTOMERS = gql`
         instagramHandle
         contactChannel
         tags
+        gender
         isActive
       }
       total
@@ -28,6 +29,7 @@ export const GET_CUSTOMER = gql`
       notes
       tags
       address
+      gender
       isActive
       createdAt
       updatedAt
