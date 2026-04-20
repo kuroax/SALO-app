@@ -26,6 +26,7 @@ import {
 
 type ContactChannel = "whatsapp" | "instagram" | "both";
 type CustomerTag = "vip" | "wholesale" | "problematic" | "regular";
+type CustomerGender = "female" | "male" | "unknown";
 
 type Customer = {
   id: string;
@@ -34,6 +35,7 @@ type Customer = {
   instagramHandle: string | null;
   contactChannel: ContactChannel;
   tags: CustomerTag[];
+  gender: CustomerGender;
   isActive: boolean;
 };
 
@@ -342,6 +344,71 @@ function Field({
   );
 }
 
+// ─── Selector ─────────────────────────────────────────────────────────────────
+
+function Selector<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  C,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  C: ThemeColors;
+}) {
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </Text>
+      <View style={{ flexDirection: "row" }}>
+        {options.map((opt, i) => {
+          const selected = value === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              onPress={() => onChange(opt.value)}
+              activeOpacity={0.7}
+              style={{
+                flex: 1,
+                paddingVertical: 11,
+                borderRadius: 10,
+                backgroundColor: selected ? C.accentMuted : C.surface,
+                borderWidth: 1,
+                borderColor: selected ? C.accent : C.border,
+                alignItems: "center",
+                marginRight: i < options.length - 1 ? 8 : 0,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: selected ? C.accent : C.textSecondary,
+                }}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Add Customer Modal ───────────────────────────────────────────────────────
 
 function AddCustomerModal({
@@ -359,11 +426,18 @@ function AddCustomerModal({
   const [phone, setPhone] = useState("");
   const [instagram, setInstagram] = useState("");
   const [channel, setChannel] = useState<ContactChannel>("whatsapp");
+  const [gender, setGender] = useState<CustomerGender>("unknown");
 
   const CHANNELS: { value: ContactChannel; label: string }[] = [
     { value: "whatsapp", label: "WhatsApp" },
     { value: "instagram", label: "Instagram" },
     { value: "both", label: "Both" },
+  ];
+
+  const GENDERS: { value: CustomerGender; label: string }[] = [
+    { value: "female", label: "Female" },
+    { value: "male", label: "Male" },
+    { value: "unknown", label: "Unknown" },
   ];
 
   const [createCustomer, { loading }] = useMutation(CREATE_CUSTOMER, {
@@ -381,6 +455,7 @@ function AddCustomerModal({
     setPhone("");
     setInstagram("");
     setChannel("whatsapp");
+    setGender("unknown");
     onClose();
   };
 
@@ -389,7 +464,6 @@ function AddCustomerModal({
     if (!phone.trim() && !instagram.trim())
       return Alert.alert("Required", "Phone or Instagram handle is required.");
 
-    // Normalize phone — undefined if empty (backend rejects null for optional strings)
     let normalizedPhone: string | undefined = undefined;
     if (phone.trim()) {
       const digits = phone.replace(/\D/g, "");
@@ -409,6 +483,7 @@ function AddCustomerModal({
             instagramHandle: normalizedInstagram,
           }),
           contactChannel: channel,
+          gender,
           tags: [],
         },
       },
@@ -469,7 +544,7 @@ function AddCustomerModal({
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
         >
           <Field
@@ -494,54 +569,20 @@ function AddCustomerModal({
             placeholder="@username"
             C={C}
           />
-
-          {/* Channel selector */}
-          <View style={{ marginBottom: 16 }}>
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "700",
-                letterSpacing: 1,
-                color: C.textTertiary,
-                textTransform: "uppercase",
-                marginBottom: 8,
-              }}
-            >
-              Contact Channel
-            </Text>
-            <View style={{ flexDirection: "row" }}>
-              {CHANNELS.map((ch, i) => {
-                const selected = channel === ch.value;
-                return (
-                  <TouchableOpacity
-                    key={ch.value}
-                    onPress={() => setChannel(ch.value)}
-                    activeOpacity={0.7}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 11,
-                      borderRadius: 10,
-                      backgroundColor: selected ? C.accentMuted : C.surface,
-                      borderWidth: 1,
-                      borderColor: selected ? C.accent : C.border,
-                      alignItems: "center",
-                      marginRight: i < CHANNELS.length - 1 ? 8 : 0,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "600",
-                        color: selected ? C.accent : C.textSecondary,
-                      }}
-                    >
-                      {ch.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          <Selector
+            label="Contact Channel"
+            options={CHANNELS}
+            value={channel}
+            onChange={setChannel}
+            C={C}
+          />
+          <Selector
+            label="Gender"
+            options={GENDERS}
+            value={gender}
+            onChange={setGender}
+            C={C}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
