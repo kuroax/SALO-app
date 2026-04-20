@@ -14,12 +14,15 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StatusBar,
   Text,
@@ -34,6 +37,9 @@ const MAX_IMAGES = 5;
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 type Size = (typeof SIZES)[number];
 const DEFAULT_COLOR = "default";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const CAROUSEL_WIDTH = SCREEN_WIDTH - 40; // paddingHorizontal: 20 on each side
 
 // ─── Cloudinary ───────────────────────────────────────────────────────────────
 
@@ -125,6 +131,99 @@ function formatDate(iso: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+// ─── Image Carousel ───────────────────────────────────────────────────────────
+
+function ImageCarousel({ images, C }: { images: string[]; C: ThemeColors }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / CAROUSEL_WIDTH);
+    setActiveIndex(index);
+  };
+
+  if (images.length === 0) return null;
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      {/* Slides */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        style={{ borderRadius: 16, overflow: "hidden" }}
+        contentContainerStyle={{ borderRadius: 16, overflow: "hidden" }}
+      >
+        {images.map((uri, i) => (
+          <View
+            key={i}
+            style={{
+              width: CAROUSEL_WIDTH,
+              aspectRatio: 1,
+              borderRadius: 16,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: C.border,
+            }}
+          >
+            <Image
+              source={{ uri }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Pagination dots */}
+      {images.length > 1 && (
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: 10,
+          }}
+        >
+          {images.map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: i === activeIndex ? 18 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === activeIndex ? C.accent : C.border,
+                marginHorizontal: 3,
+              }}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Counter badge */}
+      {images.length > 1 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            borderRadius: 10,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+          }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: "700", color: "#fff" }}>
+            {activeIndex + 1}/{images.length}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 // ─── Section ──────────────────────────────────────────────────────────────────
@@ -523,7 +622,6 @@ export default function ProductDetailScreen() {
   const [editCategoryGroup, setEditCategoryGroup] = useState("");
   const [editSubcategory, setEditSubcategory] = useState("");
   const [editSizes, setEditSizes] = useState<Size[]>([]);
-  // editImages holds either existing Cloudinary URLs or newly picked local URIs
   const [editImages, setEditImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -672,7 +770,6 @@ export default function ProductDetailScreen() {
     if (!editPrice.trim() || isNaN(parseFloat(editPrice)))
       return Alert.alert("Invalid", "Enter a valid price.");
 
-    // Separate existing Cloudinary URLs from newly picked local URIs
     const existingUrls = editImages.filter((img) => img.startsWith("http"));
     const newLocalUris = editImages.filter((img) => !img.startsWith("http"));
 
@@ -689,7 +786,6 @@ export default function ProductDetailScreen() {
       }
     }
 
-    // Reconstruct final images array preserving original order
     const finalImages = editImages.map((img) => {
       if (img.startsWith("http")) return img;
       const localIndex = newLocalUris.indexOf(img);
@@ -803,54 +899,8 @@ export default function ProductDetailScreen() {
             </Text>
           </View>
 
-          {/* ── Image gallery ────────────────────────────────────── */}
-          {productImages.length > 0 && (
-            <View style={{ marginBottom: 16 }}>
-              {/* Main image */}
-              <View
-                style={{
-                  width: "100%",
-                  aspectRatio: 1,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  borderWidth: 1,
-                  borderColor: C.border,
-                  marginBottom: 8,
-                }}
-              >
-                <Image
-                  source={{ uri: productImages[0] }}
-                  style={{ width: "100%", height: "100%" }}
-                  resizeMode="cover"
-                />
-              </View>
-              {/* Thumbnail strip */}
-              {productImages.length > 1 && (
-                <View style={{ flexDirection: "row" }}>
-                  {productImages.slice(1).map((uri, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        width: "18%",
-                        aspectRatio: 1,
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        borderWidth: 1,
-                        borderColor: C.border,
-                        marginRight: i < productImages.length - 2 ? "2.5%" : 0,
-                      }}
-                    >
-                      <Image
-                        source={{ uri }}
-                        style={{ width: "100%", height: "100%" }}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
+          {/* ── Image carousel ───────────────────────────────────── */}
+          <ImageCarousel images={productImages} C={C} />
 
           {/* Action buttons */}
           <View style={{ flexDirection: "row" }}>
@@ -1100,14 +1150,12 @@ export default function ProductDetailScreen() {
           <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
           >
-            {/* ── Multi-image grid ─────────────────────────────────── */}
             <EditImageGrid
               images={editImages}
               onAdd={pickEditImage}
               onRemove={removeEditImage}
               C={C}
             />
-
             <EditField
               label="Name"
               value={editName}
@@ -1147,7 +1195,6 @@ export default function ProductDetailScreen() {
               C={C}
             />
 
-            {/* ── Size picker ──────────────────────────────────────── */}
             <View style={{ marginBottom: 14 }}>
               <Text
                 style={{

@@ -1,5 +1,4 @@
 import type { ThemeColors } from "@/constants/Colors";
-import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
@@ -19,7 +18,7 @@ import {
   View,
 } from "react-native";
 
-// ─── Query ────────────────────────────────────────────────────────────────────
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
 const LIST_PRODUCTS_WITH_IMAGES = gql`
   query ListProductsWithImages($filters: ListProductsInput) {
@@ -38,6 +37,18 @@ const LIST_PRODUCTS_WITH_IMAGES = gql`
         }
       }
       total
+    }
+  }
+`;
+
+// Includes size so we can cross-reference against active product variants
+// and avoid showing Low Stock for deselected sizes that still have stale
+// inventory records in the database.
+const GET_LOW_STOCK_WITH_SIZE = gql`
+  query GetLowStockWithSize {
+    lowStock {
+      productId
+      size
     }
   }
 `;
@@ -67,8 +78,13 @@ type ListProductsData = {
   };
 };
 
+type LowStockItem = {
+  productId: string;
+  size: string;
+};
+
 type LowStockData = {
-  lowStock: { productId: string }[];
+  lowStock: LowStockItem[];
 };
 
 // ─── Filter Chips ─────────────────────────────────────────────────────────────
@@ -310,9 +326,31 @@ export default function InventoryScreen() {
   });
 
   const { data: lowStockData, refetch: refetchLowStock } =
-    useQuery<LowStockData>(GET_LOW_STOCK);
+    useQuery<LowStockData>(GET_LOW_STOCK_WITH_SIZE);
 
   const products = productsData?.products.products ?? [];
+
+  // ── Build active variant map for low stock filtering ──────────────────────
+  // Maps productId → Set of active size strings (uppercase)
+  // Used to exclude stale inventory records from deselected sizes
+  const productVariantMap = new Map(
+    products.map((p) => [
+      p.id,
+      new Set(p.variants.map((v) => v.size.toUpperCase())),
+    ]),
+  );
+
+  // A product only gets the Low Stock badge if the low stock inventory record
+  // belongs to a size that is still active in product.variants
+  const lowStockProductIds = new Set(
+    (lowStockData?.lowStock ?? [])
+      .filter((item) => {
+        const activeSizes = productVariantMap.get(item.productId);
+        if (!activeSizes) return false;
+        return activeSizes.has(item.size?.toUpperCase());
+      })
+      .map((item) => item.productId),
+  );
 
   // ── Derive filter options from loaded products ─────────────────────────────
 
@@ -343,7 +381,6 @@ export default function InventoryScreen() {
     ).sort(),
   ];
 
-  // Reset subcategory when category changes
   const handleCategorySelect = (cat: string) => {
     setSelectedCategory(cat);
     setSelectedSubcategory("All");
@@ -363,10 +400,6 @@ export default function InventoryScreen() {
       selectedSubcategory === "All" || p.subcategory === selectedSubcategory;
     return matchesSearch && matchesCategory && matchesSubcategory;
   });
-
-  const lowStockProductIds = new Set(
-    lowStockData?.lowStock.map((item) => item.productId) ?? [],
-  );
 
   const hasActiveFilters =
     selectedCategory !== "All" ||
@@ -444,7 +477,6 @@ export default function InventoryScreen() {
             paddingBottom: 12,
           }}
         >
-          {/* Title + count */}
           <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
             <Text
               style={{
@@ -515,7 +547,6 @@ export default function InventoryScreen() {
             )}
           </View>
 
-          {/* Category chips — only shown when there are categories in data */}
           {categoryGroups.length > 1 && (
             <View style={{ marginBottom: 8 }}>
               <FilterChips
@@ -527,7 +558,6 @@ export default function InventoryScreen() {
             </View>
           )}
 
-          {/* Subcategory chips — only shown when a category is selected and has subcategories */}
           {selectedCategory !== "All" && subcategoryOptions.length > 1 && (
             <View style={{ marginBottom: 4 }}>
               <FilterChips
@@ -539,7 +569,6 @@ export default function InventoryScreen() {
             </View>
           )}
 
-          {/* Clear filters pill */}
           {hasActiveFilters && (
             <TouchableOpacity
               onPress={() => {
