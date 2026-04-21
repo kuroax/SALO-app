@@ -4,6 +4,7 @@ import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
+import { gql} from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
