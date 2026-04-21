@@ -8,6 +8,7 @@ export const LIST_PRODUCTS = gql`
         name
         brand
         status
+        images
         variants {
           size
           color

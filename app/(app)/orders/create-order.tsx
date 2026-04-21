@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -33,6 +34,7 @@ const LIST_PRODUCTS_SIMPLE = gql`
         name
         brand
         price
+        images
         variants {
           size
           color
@@ -60,6 +62,7 @@ type Product = {
   name: string;
   brand: string;
   price: number;
+  images: string[];
   variants: { size: string; color: string }[];
 };
 
@@ -73,6 +76,7 @@ type Customer = {
 type OrderLineItem = {
   productId: string;
   productName: string;
+  productImage: string | null;
   size: string;
   color: string;
   quantity: number;
@@ -384,6 +388,7 @@ export default function CreateOrderScreen() {
       {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
+        productImage: selectedProduct.images?.[0] ?? null,
         size: selectedSize,
         color,
         quantity: itemQty,
@@ -669,11 +674,41 @@ export default function CreateOrderScreen() {
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        padding: 14,
+                        padding: 12,
                         borderBottomWidth: i < items.length - 1 ? 1 : 0,
                         borderBottomColor: C.border,
                       }}
                     >
+                      {/* Thumbnail */}
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 8,
+                          backgroundColor: C.background,
+                          borderWidth: 1,
+                          borderColor: C.border,
+                          overflow: "hidden",
+                          marginRight: 12,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {item.productImage ? (
+                          <Image
+                            source={{ uri: item.productImage }}
+                            style={{ width: 48, height: 48 }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Ionicons
+                            name="shirt-outline"
+                            size={20}
+                            color={C.textTertiary}
+                          />
+                        )}
+                      </View>
+
                       <View style={{ flex: 1 }}>
                         <Text
                           style={{
@@ -681,6 +716,7 @@ export default function CreateOrderScreen() {
                             fontWeight: "600",
                             color: C.textPrimary,
                           }}
+                          numberOfLines={1}
                         >
                           {item.productName}
                         </Text>
@@ -1152,6 +1188,7 @@ export default function CreateOrderScreen() {
           </View>
 
           {!selectedProduct ? (
+            // ── Product list ─────────────────────────────────────────────
             <>
               <View style={{ padding: 20, paddingBottom: 10 }}>
                 <TextInput
@@ -1184,33 +1221,68 @@ export default function CreateOrderScreen() {
                     onPress={() => selectProduct(p)}
                     activeOpacity={0.7}
                     style={{
-                      paddingVertical: 14,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 12,
                       borderBottomWidth: 1,
                       borderBottomColor: C.border,
                     }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: "600",
-                        color: C.textPrimary,
-                      }}
-                    >
-                      {p.name}
-                    </Text>
+                    {/* Product thumbnail */}
                     <View
                       style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        marginTop: 2,
+                        width: 56,
+                        height: 56,
+                        borderRadius: 10,
+                        backgroundColor: C.surface,
+                        borderWidth: 1,
+                        borderColor: C.border,
+                        overflow: "hidden",
+                        marginRight: 14,
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
-                      <Text style={{ fontSize: 12, color: C.textTertiary }}>
-                        {p.brand}
+                      {p.images?.[0] ? (
+                        <Image
+                          source={{ uri: p.images[0] }}
+                          style={{ width: 56, height: 56 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Ionicons
+                          name="shirt-outline"
+                          size={22}
+                          color={C.textTertiary}
+                        />
+                      )}
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: "600",
+                          color: C.textPrimary,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {p.name}
                       </Text>
-                      <Text style={{ fontSize: 12, color: C.textSecondary }}>
-                        {currencyFormatter.format(p.price)}
-                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          marginTop: 3,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, color: C.textTertiary }}>
+                          {p.brand}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: C.textSecondary }}>
+                          {currencyFormatter.format(p.price)}
+                        </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 )}
@@ -1229,35 +1301,49 @@ export default function CreateOrderScreen() {
               />
             </>
           ) : (
+            // ── Configure item ───────────────────────────────────────────
             <ScrollView
               contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
             >
-              {/* Selected product info */}
+              {/* Selected product card with image */}
               <View
                 style={{
                   backgroundColor: C.surface,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: C.accent,
-                  padding: 14,
+                  overflow: "hidden",
                   marginBottom: 20,
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "700",
-                    color: C.textPrimary,
-                  }}
-                >
-                  {selectedProduct.name}
-                </Text>
-                <Text
-                  style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
-                >
-                  {selectedProduct.brand} ·{" "}
-                  {currencyFormatter.format(selectedProduct.price)}
-                </Text>
+                {selectedProduct.images?.[0] && (
+                  <Image
+                    source={{ uri: selectedProduct.images[0] }}
+                    style={{ width: "100%", height: 180 }}
+                    resizeMode="cover"
+                  />
+                )}
+                <View style={{ padding: 14 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: C.textPrimary,
+                    }}
+                  >
+                    {selectedProduct.name}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: C.textSecondary,
+                      marginTop: 2,
+                    }}
+                  >
+                    {selectedProduct.brand} ·{" "}
+                    {currencyFormatter.format(selectedProduct.price)}
+                  </Text>
+                </View>
               </View>
 
               {/* Size picker */}
@@ -1328,7 +1414,7 @@ export default function CreateOrderScreen() {
                 )}
               </View>
 
-              {/* ── Quantity stepper ─────────────────────────────────── */}
+              {/* Quantity stepper */}
               <QuantityStepper value={itemQty} onChange={setItemQty} C={C} />
             </ScrollView>
           )}

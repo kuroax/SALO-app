@@ -6,6 +6,7 @@ import {
   UPDATE_PAYMENT_STATUS,
 } from "@/lib/graphql/mutations/order.mutations";
 import { GET_ORDER } from "@/lib/graphql/queries/order.queries";
+import { LIST_PRODUCTS } from "@/lib/graphql/queries/product.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
@@ -14,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StatusBar,
   Text,
@@ -378,6 +380,21 @@ export default function OrderDetailScreen() {
     variables: { orderId },
     skip: !orderId,
   });
+
+  // ── Product image map — keyed by productId, value is first image URL ────────
+  const { data: productsData } = useQuery<{
+    products: { products: { id: string; images: string[] }[] };
+  }>(LIST_PRODUCTS, {
+    variables: { filters: { limit: 100 } },
+    skip: !data?.order,
+  });
+
+  const productImageMap = new Map(
+    (productsData?.products?.products ?? []).map((p) => [
+      p.id,
+      p.images?.[0] ?? null,
+    ]),
+  );
 
   const refetchOrder = [{ query: GET_ORDER, variables: { orderId } }];
 
@@ -747,58 +764,98 @@ export default function OrderDetailScreen() {
 
           {/* ── Items ───────────────────────────────────────────────── */}
           <Section title="Items" C={C}>
-            {order.items.map((item, index) => (
-              <View
-                key={`${item.productId}-${item.size}-${item.color}`}
-                style={{
-                  padding: 16,
-                  borderBottomWidth: index < order.items.length - 1 ? 1 : 0,
-                  borderBottomColor: C.border,
-                }}
-              >
+            {order.items.map((item, index) => {
+              const imageUrl = productImageMap.get(item.productId) ?? null;
+              return (
                 <View
+                  key={`${item.productId}-${item.size}-${item.color}`}
                   style={{
                     flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginBottom: 4,
+                    alignItems: "center",
+                    padding: 14,
+                    borderBottomWidth: index < order.items.length - 1 ? 1 : 0,
+                    borderBottomColor: C.border,
                   }}
                 >
-                  <Text
+                  {/* Product thumbnail */}
+                  <View
                     style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: C.textPrimary,
-                      flex: 1,
-                      marginRight: 8,
+                      width: 56,
+                      height: 56,
+                      borderRadius: 10,
+                      backgroundColor: C.background,
+                      borderWidth: 1,
+                      borderColor: C.border,
+                      overflow: "hidden",
+                      marginRight: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    {item.productName}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "700",
-                      color: C.textPrimary,
-                    }}
-                  >
-                    {currencyFormatter.format(item.lineTotal)}
-                  </Text>
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={{ width: 56, height: 56 }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Ionicons
+                        name="shirt-outline"
+                        size={22}
+                        color={C.textTertiary}
+                      />
+                    )}
+                  </View>
+
+                  {/* Item details */}
+                  <View style={{ flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color: C.textPrimary,
+                          flex: 1,
+                          marginRight: 8,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {item.productName}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "700",
+                          color: C.textPrimary,
+                        }}
+                      >
+                        {currencyFormatter.format(item.lineTotal)}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, color: C.textTertiary }}>
+                        {item.size} · {item.color}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: C.textTertiary }}>
+                        {item.quantity} ×{" "}
+                        {currencyFormatter.format(item.unitPrice)}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: C.textTertiary }}>
-                    {item.size} · {item.color}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: C.textTertiary }}>
-                    {item.quantity} × {currencyFormatter.format(item.unitPrice)}
-                  </Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </Section>
 
           {/* ── Payment ─────────────────────────────────────────────── */}
