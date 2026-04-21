@@ -81,9 +81,8 @@ type OrderLineItem = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Manual orders created from the app always use "whatsapp" channel internally.
-// Channel selection is removed from the UI — only the bot uses whatsapp/instagram.
 const DEFAULT_COLOR = "default";
+const MAX_QTY = 10;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -136,12 +135,123 @@ function Field({
           borderWidth: 1,
           borderColor: C.border,
           borderRadius: 10,
-          paddingVertical: 11,
+          height: 46,
           paddingHorizontal: 14,
           fontSize: 14,
           color: C.textPrimary,
         }}
       />
+    </View>
+  );
+}
+
+// ─── Quantity Stepper ─────────────────────────────────────────────────────────
+// Matches the exact height of Field — paddingVertical: 11, fontSize: 14
+
+function QuantityStepper({
+  value,
+  onChange,
+  C,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  C: ThemeColors;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}
+      >
+        Quantity
+      </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: C.surface,
+          borderWidth: 1,
+          borderColor: C.border,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          height: 46,
+        }}
+      >
+        {/* − button */}
+        <TouchableOpacity
+          onPress={() => onChange(Math.max(1, value - 1))}
+          disabled={value <= 1}
+          activeOpacity={0.7}
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            borderWidth: 1,
+            borderColor: C.border,
+            backgroundColor: C.background,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: value <= 1 ? 0.35 : 1,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: C.textPrimary,
+              lineHeight: 18,
+            }}
+          >
+            −
+          </Text>
+        </TouchableOpacity>
+
+        {/* Count */}
+        <Text
+          style={{
+            flex: 1,
+            textAlign: "center",
+            fontSize: 14,
+            fontWeight: "700",
+            color: C.textPrimary,
+          }}
+        >
+          {value}
+        </Text>
+
+        {/* + button */}
+        <TouchableOpacity
+          onPress={() => onChange(Math.min(MAX_QTY, value + 1))}
+          disabled={value >= MAX_QTY}
+          activeOpacity={0.7}
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: C.accent,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: value >= MAX_QTY ? 0.35 : 1,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: C.background,
+              lineHeight: 18,
+            }}
+          >
+            +
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -159,25 +269,21 @@ export default function CreateOrderScreen() {
   const [customerName, setCustomerName] = useState("");
   const [items, setItems] = useState<OrderLineItem[]>([]);
 
-  // Modals
   const [customerPickerVisible, setCustomerPickerVisible] = useState(false);
   const [productPickerVisible, setProductPickerVisible] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
 
-  // ── Inline new customer state ──────────────────────────────────────────────
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerInstagram, setNewCustomerInstagram] = useState("");
 
-  // Product selection state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [itemQty, setItemQty] = useState("1");
+  const [itemQty, setItemQty] = useState(1);
   const [itemPrice, setItemPrice] = useState("");
 
-  // Queries
   const { data: customersData, refetch: refetchCustomers } = useQuery<{
     customers: { customers: Customer[] };
   }>(LIST_CUSTOMERS, {
@@ -240,8 +346,6 @@ export default function CreateOrderScreen() {
 
   const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
   const selectCustomer = (c: Customer) => {
     setCustomerId(c.id);
     setCustomerName(c.name);
@@ -258,7 +362,7 @@ export default function CreateOrderScreen() {
   const openProductPicker = () => {
     setSelectedProduct(null);
     setSelectedSize(null);
-    setItemQty("1");
+    setItemQty(1);
     setItemPrice("");
     setProductSearch("");
     setProductPickerVisible(true);
@@ -273,7 +377,6 @@ export default function CreateOrderScreen() {
   const confirmAddItem = () => {
     if (!selectedProduct) return;
     if (!selectedSize) return Alert.alert("Required", "Select a size.");
-    const qty = Math.max(1, parseInt(itemQty, 10) || 1);
     const price = parseFloat(itemPrice);
     if (isNaN(price) || price < 0)
       return Alert.alert("Invalid", "Enter a valid price.");
@@ -289,7 +392,7 @@ export default function CreateOrderScreen() {
         productName: selectedProduct.name,
         size: selectedSize,
         color,
-        quantity: qty,
+        quantity: itemQty,
         unitPrice: price,
       },
     ]);
@@ -325,9 +428,7 @@ export default function CreateOrderScreen() {
 
   const normalizePhone = (raw: string): string => {
     const cleaned = raw.replace(/[^\d+]/g, "");
-    if (cleaned.length > 0 && !cleaned.startsWith("+")) {
-      return `+52${cleaned}`;
-    }
+    if (cleaned.length > 0 && !cleaned.startsWith("+")) return `+52${cleaned}`;
     return cleaned;
   };
 
@@ -376,11 +477,7 @@ export default function CreateOrderScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
           {/* ── Header ────────────────────────────────────────────────── */}
           <View
-            style={{
-              paddingHorizontal: 20,
-              paddingTop: 64,
-              paddingBottom: 20,
-            }}
+            style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
           >
             <TouchableOpacity
               onPress={() => router.back()}
@@ -540,11 +637,7 @@ export default function CreateOrderScreen() {
                     style={{ marginRight: 4 }}
                   />
                   <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: C.accent,
-                    }}
+                    style={{ fontSize: 12, fontWeight: "600", color: C.accent }}
                   >
                     Add Item
                   </Text>
@@ -632,8 +725,6 @@ export default function CreateOrderScreen() {
                       </TouchableOpacity>
                     </View>
                   ))}
-
-                  {/* Subtotal */}
                   <View
                     style={{
                       flexDirection: "row",
@@ -691,11 +782,7 @@ export default function CreateOrderScreen() {
                 />
               )}
               <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: "700",
-                  color: C.background,
-                }}
+                style={{ fontSize: 15, fontWeight: "700", color: C.background }}
               >
                 {creating ? "Creating…" : "Create Order"}
               </Text>
@@ -711,7 +798,6 @@ export default function CreateOrderScreen() {
         presentationStyle="pageSheet"
       >
         <View style={{ flex: 1, backgroundColor: C.background }}>
-          {/* Header */}
           <View
             style={{
               flexDirection: "row",
@@ -760,12 +846,8 @@ export default function CreateOrderScreen() {
           </View>
 
           {showNewCustomerForm ? (
-            /* ── Inline create customer form ──────────────────────────── */
             <ScrollView
-              contentContainerStyle={{
-                padding: 20,
-                paddingBottom: 60,
-              }}
+              contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
               keyboardShouldPersistTaps="handled"
             >
               <Field
@@ -802,7 +884,6 @@ export default function CreateOrderScreen() {
               </Text>
             </ScrollView>
           ) : (
-            /* ── Customer list ────────────────────────────────────────── */
             <>
               <View style={{ padding: 20, paddingBottom: 10 }}>
                 <TextInput
@@ -823,7 +904,6 @@ export default function CreateOrderScreen() {
                   }}
                 />
               </View>
-
               <FlatList
                 data={filteredCustomers}
                 keyExtractor={(c) => c.id}
@@ -950,7 +1030,6 @@ export default function CreateOrderScreen() {
                   }}
                 />
               </View>
-
               <FlatList
                 data={filteredProducts}
                 keyExtractor={(p) => p.id}
@@ -1032,11 +1111,7 @@ export default function CreateOrderScreen() {
                   {selectedProduct.name}
                 </Text>
                 <Text
-                  style={{
-                    fontSize: 13,
-                    color: C.textSecondary,
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
                 >
                   {selectedProduct.brand} ·{" "}
                   {currencyFormatter.format(selectedProduct.price)}
@@ -1111,15 +1186,8 @@ export default function CreateOrderScreen() {
                 )}
               </View>
 
-              {/* Quantity */}
-              <Field
-                label="Quantity"
-                value={itemQty}
-                onChangeText={setItemQty}
-                placeholder="1"
-                keyboardType="decimal-pad"
-                C={C}
-              />
+              {/* ── Quantity stepper ─────────────────────────────────── */}
+              <QuantityStepper value={itemQty} onChange={setItemQty} C={C} />
 
               {/* Unit Price */}
               <Field
