@@ -1,9 +1,9 @@
 import { type ThemeColors } from "@/constants/Colors";
+import { LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
 import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -16,19 +16,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-// ─── Customer names query ─────────────────────────────────────────────────────
-
-const LIST_CUSTOMER_NAMES = gql`
-  query ListCustomerNamesDashboard {
-    customers(input: { limit: 500, isActive: true }) {
-      customers {
-        id
-        name
-      }
-    }
-  }
-`;
 
 // ─── Revenue stats query ─────────────────────────────────────────────────────
 
@@ -284,18 +271,17 @@ function OrderRow({
           style={{ fontSize: 13, fontWeight: "600", color: C.textPrimary }}
           numberOfLines={1}
         >
-          {order.orderNumber}
+          {customerName ??
+            (order.customerId ? "Customer assigned" : "No customer")}
         </Text>
         <Text
           style={{
             fontSize: 11,
-            color: customerName ? C.textSecondary : statusColor,
+            color: C.textTertiary,
             marginTop: 2,
-            fontWeight: "500",
-            textTransform: customerName ? "none" : "capitalize",
           }}
         >
-          {customerName ?? order.status}
+          {order.orderNumber}
         </Text>
       </View>
 
@@ -534,7 +520,10 @@ export default function DashboardScreen() {
 
   const { data: customerNamesData, refetch: refetchCustomers } = useQuery<{
     customers: { customers: { id: string; name: string }[] };
-  }>(LIST_CUSTOMER_NAMES);
+  }>(LIST_CUSTOMERS, {
+    variables: { input: { limit: 100 } },
+    fetchPolicy: "network-only",
+  });
 
   const { data: revenueStatsData, refetch: refetchRevenueStats } = useQuery<{
     revenueStats: MonthRevenue[];

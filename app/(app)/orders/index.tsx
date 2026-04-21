@@ -1,11 +1,12 @@
 import { type ThemeColors } from "@/constants/Colors";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
-import { useColors, useScheme } from "@/lib/hooks/useColors";
-import { gql } from "@apollo/client";
+import { LIST_CUSTOMERS } from "@/lib/graphql/queries/customer.queries";
+import { useColors } from "@/lib/hooks/useColors";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,18 +19,7 @@ import {
   View,
 } from "react-native";
 
-// ─── Customer names query (lightweight — id + name only) ─────────────────────
-
-const LIST_CUSTOMER_NAMES = gql`
-  query ListCustomerNames {
-    customers(input: { limit: 500, isActive: true }) {
-      customers {
-        id
-        name
-      }
-    }
-  }
-`;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type CustomerNamesData = {
   customers: { customers: { id: string; name: string }[] };
@@ -407,8 +397,10 @@ export default function OrdersScreen() {
     },
   );
 
-  const { data: customerNamesData } =
-    useQuery<CustomerNamesData>(LIST_CUSTOMER_NAMES);
+  const { data: customerNamesData } = useQuery<CustomerNamesData>(
+    LIST_CUSTOMERS,
+    { variables: { input: { limit: 100 } }, fetchPolicy: "network-only" },
+  );
 
   const customerNameMap = new Map(
     (customerNamesData?.customers.customers ?? []).map((c) => [c.id, c.name]),
