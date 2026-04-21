@@ -282,7 +282,6 @@ export default function CreateOrderScreen() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [itemQty, setItemQty] = useState(1);
-  const [itemPrice, setItemPrice] = useState("");
 
   const { data: customersData, refetch: refetchCustomers } = useQuery<{
     customers: { customers: Customer[] };
@@ -363,23 +362,18 @@ export default function CreateOrderScreen() {
     setSelectedProduct(null);
     setSelectedSize(null);
     setItemQty(1);
-    setItemPrice("");
     setProductSearch("");
     setProductPickerVisible(true);
   };
 
   const selectProduct = (p: Product) => {
     setSelectedProduct(p);
-    setItemPrice(String(p.price));
     setSelectedSize(null);
   };
 
   const confirmAddItem = () => {
     if (!selectedProduct) return;
     if (!selectedSize) return Alert.alert("Required", "Select a size.");
-    const price = parseFloat(itemPrice);
-    if (isNaN(price) || price < 0)
-      return Alert.alert("Invalid", "Enter a valid price.");
 
     const color =
       selectedProduct.variants.find((v) => v.size === selectedSize)?.color ??
@@ -393,7 +387,7 @@ export default function CreateOrderScreen() {
         size: selectedSize,
         color,
         quantity: itemQty,
-        unitPrice: price,
+        unitPrice: selectedProduct.price,
       },
     ]);
     setProductPickerVisible(false);
@@ -885,78 +879,226 @@ export default function CreateOrderScreen() {
             </ScrollView>
           ) : (
             <>
-              <View style={{ padding: 20, paddingBottom: 10 }}>
-                <TextInput
-                  value={customerSearch}
-                  onChangeText={setCustomerSearch}
-                  placeholder="Search customers…"
-                  placeholderTextColor={C.textTertiary}
-                  autoCapitalize="none"
+              {/* Search bar */}
+              <View
+                style={{
+                  paddingHorizontal: 20,
+                  paddingTop: 16,
+                  paddingBottom: 10,
+                }}
+              >
+                <View
                   style={{
+                    flexDirection: "row",
+                    alignItems: "center",
                     backgroundColor: C.surface,
+                    borderRadius: 12,
                     borderWidth: 1,
                     borderColor: C.border,
-                    borderRadius: 10,
-                    paddingVertical: 11,
-                    paddingHorizontal: 14,
-                    fontSize: 14,
-                    color: C.textPrimary,
+                    paddingHorizontal: 12,
                   }}
-                />
-              </View>
-              <FlatList
-                data={filteredCustomers}
-                keyExtractor={(c) => c.id}
-                contentContainerStyle={{
-                  paddingHorizontal: 20,
-                  paddingBottom: 40,
-                }}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item: c }) => (
-                  <TouchableOpacity
-                    onPress={() => selectCustomer(c)}
-                    activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="search-outline"
+                    size={16}
+                    color={C.textTertiary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <TextInput
+                    value={customerSearch}
+                    onChangeText={setCustomerSearch}
+                    placeholder="Search by name, phone or handle…"
+                    placeholderTextColor={C.textTertiary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     style={{
-                      paddingVertical: 14,
-                      borderBottomWidth: 1,
-                      borderBottomColor: C.border,
+                      flex: 1,
+                      paddingVertical: 10,
+                      fontSize: 14,
+                      color: C.textPrimary,
                     }}
-                  >
+                  />
+                  {customerSearch.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setCustomerSearch("")}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={16}
+                        color={C.textTertiary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Grouped alphabetical list */}
+              {(() => {
+                const grouped = filteredCustomers
+                  .reduce<{ letter: string; items: Customer[] }[]>(
+                    (acc, customer) => {
+                      const letter = customer.name[0]?.toUpperCase() ?? "#";
+                      const existing = acc.find((g) => g.letter === letter);
+                      if (existing) existing.items.push(customer);
+                      else acc.push({ letter, items: [customer] });
+                      return acc;
+                    },
+                    [],
+                  )
+                  .sort((a, b) => a.letter.localeCompare(b.letter));
+
+                if (grouped.length === 0) {
+                  return (
                     <Text
                       style={{
-                        fontSize: 15,
-                        fontWeight: "600",
-                        color: C.textPrimary,
+                        fontSize: 13,
+                        color: C.textTertiary,
+                        textAlign: "center",
+                        paddingVertical: 40,
                       }}
                     >
-                      {c.name}
+                      No customers found
                     </Text>
-                    {(c.phone || c.instagramHandle) && (
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: C.textTertiary,
-                          marginTop: 2,
-                        }}
-                      >
-                        {c.phone ?? `@${c.instagramHandle}`}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: C.textTertiary,
-                      textAlign: "center",
-                      paddingVertical: 40,
-                    }}
-                  >
-                    No customers found
-                  </Text>
+                  );
                 }
-              />
+
+                return (
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                  >
+                    {grouped.map((group) => (
+                      <View key={group.letter}>
+                        {/* Section header */}
+                        <View
+                          style={{
+                            paddingHorizontal: 20,
+                            paddingVertical: 6,
+                            backgroundColor: C.background,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "700",
+                              color: C.accent,
+                              letterSpacing: 1,
+                            }}
+                          >
+                            {group.letter}
+                          </Text>
+                        </View>
+
+                        {/* Customers in group */}
+                        {group.items.map((c, i) => {
+                          const initials = c.name
+                            .split(" ")
+                            .slice(0, 2)
+                            .map((w) => w[0]?.toUpperCase() ?? "")
+                            .join("");
+                          const isWhatsApp = c.phone && !c.instagramHandle;
+                          const contact =
+                            c.phone ??
+                            (c.instagramHandle
+                              ? `@${c.instagramHandle}`
+                              : null);
+                          const channelIcon =
+                            c.instagramHandle && !c.phone
+                              ? "logo-instagram"
+                              : "logo-whatsapp";
+
+                          return (
+                            <TouchableOpacity
+                              key={c.id}
+                              onPress={() => selectCustomer(c)}
+                              activeOpacity={0.7}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingVertical: 12,
+                                paddingHorizontal: 20,
+                                borderBottomWidth:
+                                  i === group.items.length - 1 ? 0 : 1,
+                                borderBottomColor: C.border,
+                              }}
+                            >
+                              {/* Avatar */}
+                              <View
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: 22,
+                                  backgroundColor: C.success + "25",
+                                  borderWidth: 1,
+                                  borderColor: C.success + "50",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  marginRight: 14,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 15,
+                                    fontWeight: "700",
+                                    color: C.success,
+                                  }}
+                                >
+                                  {initials || "?"}
+                                </Text>
+                              </View>
+
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={{
+                                    fontSize: 15,
+                                    fontWeight: "700",
+                                    color: C.textPrimary,
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {c.name}
+                                </Text>
+                                {contact && (
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      marginTop: 3,
+                                    }}
+                                  >
+                                    <Ionicons
+                                      name={channelIcon}
+                                      size={12}
+                                      color={C.textTertiary}
+                                      style={{ marginRight: 4 }}
+                                    />
+                                    <Text
+                                      style={{
+                                        fontSize: 12,
+                                        color: C.textSecondary,
+                                      }}
+                                      numberOfLines={1}
+                                    >
+                                      {contact}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              <Ionicons
+                                name="chevron-forward"
+                                size={14}
+                                color={C.textTertiary}
+                              />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </ScrollView>
+                );
+              })()}
             </>
           )}
         </View>
@@ -1188,16 +1330,6 @@ export default function CreateOrderScreen() {
 
               {/* ── Quantity stepper ─────────────────────────────────── */}
               <QuantityStepper value={itemQty} onChange={setItemQty} C={C} />
-
-              {/* Unit Price */}
-              <Field
-                label="Unit Price (MXN)"
-                value={itemPrice}
-                onChangeText={setItemPrice}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
-                C={C}
-              />
             </ScrollView>
           )}
         </View>

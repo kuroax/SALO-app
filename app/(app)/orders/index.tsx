@@ -1,12 +1,11 @@
 import { type ThemeColors } from "@/constants/Colors";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
-import { useColors } from "@/lib/hooks/useColors";
+import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   FlatList,
@@ -80,33 +79,50 @@ function formatDate(isoString: string): string {
 
 function getStatusColor(status: OrderStatus, C: ThemeColors): string {
   switch (status) {
-    case "pending":    return C.pending;
-    case "confirmed":  return C.today;
-    case "processing": return C.today;
-    case "shipped":    return C.accent; // no purple token; accent as stand-in
-    case "delivered":  return C.success;
-    case "cancelled":  return C.alert;
+    case "pending":
+      return C.pending;
+    case "confirmed":
+      return C.today;
+    case "processing":
+      return C.today;
+    case "shipped":
+      return C.accent; // no purple token; accent as stand-in
+    case "delivered":
+      return C.success;
+    case "cancelled":
+      return C.alert;
   }
 }
 
 function getPaymentColor(status: PaymentStatus, C: ThemeColors): string {
   switch (status) {
-    case "unpaid":  return C.alert;
-    case "partial": return C.pending;
-    case "paid":    return C.success;
+    case "unpaid":
+      return C.alert;
+    case "partial":
+      return C.pending;
+    case "paid":
+      return C.success;
   }
 }
 
 // ─── Filter chips ─────────────────────────────────────────────────────────────
 
 const FILTER_VALUES: (OrderStatus | "all")[] = [
-  "all", "pending", "confirmed", "shipped", "delivered",
+  "all",
+  "pending",
+  "confirmed",
+  "shipped",
+  "delivered",
 ];
 
 const FILTER_LABELS: Record<OrderStatus | "all", string> = {
-  all: "All", pending: "Pending", confirmed: "Confirmed",
-  processing: "Processing", shipped: "Shipped",
-  delivered: "Delivered", cancelled: "Cancelled",
+  all: "All",
+  pending: "Pending",
+  confirmed: "Confirmed",
+  processing: "Processing",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
 };
 
 function FilterChip({
@@ -181,22 +197,37 @@ function OrderCard({
         borderColor: C.border,
       }}
     >
-      {/* Top row */}
+      {/* Top row — customer name + total */}
       <View
         style={{
           flexDirection: "row",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
-          marginBottom: 10,
+          marginBottom: 4,
         }}
       >
-        <Text style={{ fontSize: 14, fontWeight: "700", color: C.textPrimary }}>
-          {order.orderNumber}
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            color: C.textPrimary,
+            flex: 1,
+            marginRight: 12,
+          }}
+          numberOfLines={1}
+        >
+          {customerName ??
+            (order.customerId ? "Customer assigned" : "No customer")}
         </Text>
         <Text style={{ fontSize: 15, fontWeight: "700", color: C.textPrimary }}>
           {currencyFormatter.format(order.total)}
         </Text>
       </View>
+
+      {/* Order number */}
+      <Text style={{ fontSize: 12, color: C.textTertiary, marginBottom: 10 }}>
+        {order.orderNumber}
+      </Text>
 
       {/* Badges row */}
       <View style={{ flexDirection: "row", marginBottom: 10 }}>
@@ -246,26 +277,16 @@ function OrderCard({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
         }}
       >
-        <Text style={{ fontSize: 12, color: C.textTertiary }}>
-          {customerName ??
-            (order.customerId ? "Customer assigned" : "No customer")}
+        <Text style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}>
+          {itemCount} unit{itemCount !== 1 ? "s" : ""}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text
-            style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}
-          >
-            {itemCount} unit{itemCount !== 1 ? "s" : ""}
-          </Text>
-          <Text
-            style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}
-          >
-            {formatDate(order.createdAt)}
-          </Text>
-          <Ionicons name="chevron-forward" size={13} color={C.textTertiary} />
-        </View>
+        <Text style={{ fontSize: 12, color: C.textTertiary, marginRight: 10 }}>
+          {formatDate(order.createdAt)}
+        </Text>
+        <Ionicons name="chevron-forward" size={13} color={C.textTertiary} />
       </View>
     </TouchableOpacity>
   );
