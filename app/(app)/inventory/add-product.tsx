@@ -73,16 +73,14 @@ const GENDERS = [
 ] as const;
 type Gender = "men" | "women";
 
-const DEFAULT_COLOR = "default";
-
 type SizeStock = { size: Size; quantity: number };
 
-// Fields that participate in inline validation
 type FormErrors = Partial<{
   name: string;
   brand: string;
   description: string;
   price: string;
+  color: string; // Added
   categoryGroup: string;
   subcategory: string;
 }>;
@@ -92,11 +90,12 @@ type FormFields = {
   brand: string;
   description: string;
   price: string;
+  color: string; // Added
   categoryGroup: string;
   subcategory: string;
 };
 
-// ─── Category Map (gender-aware) ─────────────────────────────────────────────
+// ─── Category Map ─────────────────────────────────────────────────────────────
 
 const CATEGORY_MAP: Record<string, Record<string, string[]>> = {
   women: {
@@ -124,8 +123,6 @@ const CATEGORY_MAP: Record<string, Record<string, string[]>> = {
 };
 
 // ─── Validation ───────────────────────────────────────────────────────────────
-// Pure function — called on every render so visible errors are always in sync
-// with the current field values. No separate "run validation" step needed.
 
 function validateFields(f: FormFields): FormErrors {
   const errs: FormErrors = {};
@@ -135,17 +132,17 @@ function validateFields(f: FormFields): FormErrors {
     errs.description = `Minimum ${DESCRIPTION_MIN} characters required`;
   if (!f.price.trim() || isNaN(parseFloat(f.price)) || parseFloat(f.price) < 0)
     errs.price = "Enter a valid price";
+  // Color: required, letters/spaces/hyphens only, max 50 chars
+  if (!f.color.trim()) errs.color = "Color is required";
+  else if (f.color.trim().length > 50)
+    errs.color = "Color must be at most 50 characters";
   if (!f.categoryGroup.trim())
     errs.categoryGroup = "Category group is required";
   if (!f.subcategory.trim()) errs.subcategory = "Subcategory is required";
   return errs;
 }
 
-// ─── Field ────────────────────────────────────────────────────────────────────
-// Fix #1: required field indicators (* marker + inline error text)
-// Fix #3: description character counter (via showCounter + minLength)
-// Fix #6: price prefix outside the input (via prefix prop)
-// Fix #6: empty price placeholder instead of misleading "0.00"
+// ─── Field component ──────────────────────────────────────────────────────────
 
 function Field({
   label,
@@ -171,9 +168,7 @@ function Field({
   keyboardType?: "default" | "decimal-pad";
   required?: boolean;
   error?: string;
-  // Rendered as a text prefix inside the input row (e.g. "MXN $")
   prefix?: string;
-  // Shows a live "N / min" counter below the field
   showCounter?: boolean;
   minLength?: number;
   C: ThemeColors;
@@ -184,7 +179,6 @@ function Field({
 
   return (
     <View style={{ marginBottom: 16 }}>
-      {/* Label row */}
       <View
         style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
       >
@@ -213,7 +207,6 @@ function Field({
         )}
       </View>
 
-      {/* Input container — wraps prefix + TextInput in a row */}
       <View
         style={{
           flexDirection: "row",
@@ -259,7 +252,6 @@ function Field({
         />
       </View>
 
-      {/* Character counter — persists below field, turns accent color when met */}
       {showCounter && minLength && (
         <View
           style={{
@@ -287,7 +279,6 @@ function Field({
         </View>
       )}
 
-      {/* Inline error — only shown after user has interacted with the field */}
       {hasError && (
         <Text style={{ fontSize: 12, color: C.alert, marginTop: 4 }}>
           {error}
@@ -298,7 +289,6 @@ function Field({
 }
 
 // ─── Searchable Select ────────────────────────────────────────────────────────
-// Fix #1: required marker and inline error support added
 
 function SearchableSelect({
   label,
@@ -336,9 +326,8 @@ function SearchableSelect({
   const exactMatch = options.some(
     (o) => o.toLowerCase() === query.trim().toLowerCase(),
   );
-  const showCustomOption = query.trim().length > 0 && !exactMatch;
-  const showDropdown =
-    open && !disabled && (filtered.length > 0 || showCustomOption);
+  const showCustom = query.trim().length > 0 && !exactMatch;
+  const showDropdown = open && !disabled && (filtered.length > 0 || showCustom);
   const hasError = !!error;
 
   const handleSelect = (v: string) => {
@@ -354,7 +343,6 @@ function SearchableSelect({
 
   return (
     <View style={{ marginBottom: 16 }}>
-      {/* Label row */}
       <View
         style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
       >
@@ -386,7 +374,7 @@ function SearchableSelect({
       <TouchableOpacity
         activeOpacity={1}
         onPress={() => {
-          if (!disabled) setOpen((prev) => !prev);
+          if (!disabled) setOpen((p) => !p);
         }}
         style={{
           flexDirection: "row",
@@ -452,7 +440,7 @@ function SearchableSelect({
                 paddingVertical: 13,
                 paddingHorizontal: 16,
                 borderBottomWidth:
-                  i < filtered.length - 1 || showCustomOption ? 1 : 0,
+                  i < filtered.length - 1 || showCustom ? 1 : 0,
                 borderBottomColor: C.border,
                 flexDirection: "row",
                 alignItems: "center",
@@ -466,7 +454,7 @@ function SearchableSelect({
               )}
             </TouchableOpacity>
           ))}
-          {showCustomOption && (
+          {showCustom && (
             <TouchableOpacity
               onPress={() => handleSelect(query.trim())}
               activeOpacity={0.7}
@@ -493,7 +481,6 @@ function SearchableSelect({
         </View>
       )}
 
-      {/* Inline error */}
       {hasError && (
         <Text style={{ fontSize: 12, color: C.alert, marginTop: 4 }}>
           {error}
@@ -504,11 +491,6 @@ function SearchableSelect({
 }
 
 // ─── Image Grid ───────────────────────────────────────────────────────────────
-// Fix #4: 5-slot horizontal strip replaces single large add button.
-// All 5 slots are always visible — filled slots show thumbnail + remove,
-// the next available slot is the active add target (accent border + + icon),
-// subsequent empty slots are shown as neutral placeholders.
-// The first slot is labeled "MAIN" to replace the now-redundant hint text.
 
 const TILE_SIZE = 72;
 const TILE_GAP = 8;
@@ -521,7 +503,7 @@ function ImageGrid({
 }: {
   images: string[];
   onAdd: () => void;
-  onRemove: (index: number) => void;
+  onRemove: (i: number) => void;
   C: ThemeColors;
 }) {
   return (
@@ -550,7 +532,6 @@ function ImageGrid({
         </Text>
       </View>
 
-      {/* Horizontal strip — always shows all 5 slots */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -560,7 +541,6 @@ function ImageGrid({
           const uri = images[index];
           const isFilled = !!uri;
           const isMain = index === 0;
-          // The next empty slot after all filled images is the active add target
           const isNextSlot = index === images.length;
 
           if (isFilled) {
@@ -582,7 +562,6 @@ function ImageGrid({
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                 />
-                {/* Remove */}
                 <TouchableOpacity
                   onPress={() => onRemove(index)}
                   activeOpacity={0.8}
@@ -600,7 +579,6 @@ function ImageGrid({
                 >
                   <Ionicons name="close" size={11} color="#fff" />
                 </TouchableOpacity>
-                {/* Main badge */}
                 {isMain && (
                   <View
                     style={{
@@ -624,7 +602,6 @@ function ImageGrid({
             );
           }
 
-          // Empty slot
           return (
             <TouchableOpacity
               key={index}
@@ -661,7 +638,6 @@ function ImageGrid({
                   )}
                 </>
               ) : (
-                // Subsequent empty slots — visible but not interactive
                 <View
                   style={{
                     width: 14,
@@ -691,6 +667,13 @@ export default function AddProductScreen() {
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  // Color: single value per product record. When the same product exists in
+  // multiple colors, each color is a separate createProduct call — matching
+  // the Model B architecture (one MongoDB document per product+color combination
+  // until a full parent/variant UI is built).
+  // The backend stores color lowercase on the variant; the Zod schema in
+  // product.validation.ts applies .toLowerCase() so any casing works here.
+  const [color, setColor] = useState("");
   const [gender, setGender] = useState<Gender>("women");
   const [categoryGroup, setCategoryGroup] = useState("");
   const [subcategory, setSubcategory] = useState("");
@@ -698,9 +681,6 @@ export default function AddProductScreen() {
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  // touched tracks which fields the user has interacted with.
-  // Errors only display for touched fields — on submit we mark all as touched
-  // so every error surfaces at once without waiting for individual blurs.
   const [touched, setTouched] = useState<
     Partial<Record<keyof FormErrors, boolean>>
   >({});
@@ -711,18 +691,16 @@ export default function AddProductScreen() {
 
   const [addStock] = useMutation(ADD_STOCK);
 
-  // Computed every render — pure string checks, negligible cost
   const formErrors = validateFields({
     name,
     brand,
     description,
     price,
+    color,
     categoryGroup,
     subcategory,
   });
-
-  // Only the errors for fields the user has touched are shown inline
-  const visibleErrors: FormErrors = Object.fromEntries(
+  const visibleErrors = Object.fromEntries(
     Object.entries(formErrors).filter(([k]) => touched[k as keyof FormErrors]),
   ) as FormErrors;
 
@@ -730,19 +708,18 @@ export default function AddProductScreen() {
     setTouched((prev) => ({ ...prev, [field]: true }));
 
   const genderMap = gender === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
-  const categoryGroups = Object.keys({
-    ...genderMap,
-    ...CATEGORY_MAP.general,
-  });
+  const categoryGroups = Object.keys({ ...genderMap, ...CATEGORY_MAP.general });
   const fullMap = { ...genderMap, ...CATEGORY_MAP.general };
-  const subcategoryOptions: string[] = categoryGroup
+  const subcategoryOptions = categoryGroup
     ? (fullMap[categoryGroup] ?? [])
     : [];
 
   const handleGenderChange = (g: Gender) => {
     setGender(g);
-    const newMap = g === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
-    const newFull = { ...newMap, ...CATEGORY_MAP.general };
+    const newFull = {
+      ...(g === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women),
+      ...CATEGORY_MAP.general,
+    };
     if (categoryGroup && !newFull[categoryGroup]) {
       setCategoryGroup("");
       setSubcategory("");
@@ -777,25 +754,24 @@ export default function AddProductScreen() {
     }
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = (index: number) =>
     setImageUris((prev) => prev.filter((_, i) => i !== index));
-  };
 
-  // ── Size toggle ───────────────────────────────────────────────────────────
+  // ── Sizes ─────────────────────────────────────────────────────────────────
 
   const toggleSize = (size: Size) => {
     const exists = sizeStocks.find((s) => s.size === size);
-    if (exists) {
-      setSizeStocks(sizeStocks.filter((s) => s.size !== size));
-    } else {
-      setSizeStocks([...sizeStocks, { size, quantity: 0 }]);
-    }
+    setSizeStocks(
+      exists
+        ? sizeStocks.filter((s) => s.size !== size)
+        : [...sizeStocks, { size, quantity: 0 }],
+    );
   };
 
   const isSizeSelected = (size: Size) =>
     sizeStocks.some((s) => s.size === size);
 
-  const updateQty = (size: Size, delta: number) => {
+  const updateQty = (size: Size, delta: number) =>
     setSizeStocks(
       sizeStocks.map((s) =>
         s.size === size
@@ -803,20 +779,16 @@ export default function AddProductScreen() {
           : s,
       ),
     );
-  };
 
   // ── Submit ────────────────────────────────────────────────────────────────
-  // Mark all fields as touched first so all inline errors surface at once.
-  // Removed individual Alert.alert calls for field errors — errors are now
-  // shown inline, which is less disruptive and more scannable on a long form.
 
   const handleSubmit = async () => {
-    // Surface all inline errors simultaneously
     setTouched({
       name: true,
       brand: true,
       description: true,
       price: true,
+      color: true,
       categoryGroup: true,
       subcategory: true,
     });
@@ -826,10 +798,10 @@ export default function AddProductScreen() {
       brand,
       description,
       price,
+      color,
       categoryGroup,
       subcategory,
     });
-
     if (Object.keys(errs).length > 0) return;
 
     let images: string[] = [];
@@ -859,9 +831,12 @@ export default function AddProductScreen() {
             gender,
             categoryGroup: categoryGroup.trim(),
             subcategory: subcategory.trim(),
+            // Color is applied to every variant. The backend validation schema
+            // applies .toLowerCase() on the color field, matching what the
+            // inventory pre-save hook expects for consistent querying.
             variants: sizeStocks.map(({ size }) => ({
               size,
-              color: DEFAULT_COLOR,
+              color: color.trim(),
             })),
             images,
             status: "active",
@@ -881,7 +856,7 @@ export default function AddProductScreen() {
                 input: {
                   productId,
                   size: s.size,
-                  color: DEFAULT_COLOR,
+                  color: color.trim(),
                   quantity: s.quantity,
                 },
               },
@@ -915,7 +890,7 @@ export default function AddProductScreen() {
           contentContainerStyle={{ paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Header ──────────────────────────────────────────────── */}
+          {/* ── Header ─────────────────────────────────────────────── */}
           <View
             style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
           >
@@ -956,8 +931,6 @@ export default function AddProductScreen() {
             >
               Fill in the details to add a new product
             </Text>
-
-            {/* Required fields note */}
             <Text
               style={{ fontSize: 11, color: C.textTertiary, marginTop: 10 }}
             >
@@ -966,8 +939,7 @@ export default function AddProductScreen() {
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
-            {/* ── Image grid ────────────────────────────────────────── */}
-            {/* Fix #4: 5-slot strip replaces single tile */}
+            {/* ── Images ─────────────────────────────────────────────── */}
             <ImageGrid
               images={imageUris}
               onAdd={pickImage}
@@ -975,7 +947,7 @@ export default function AddProductScreen() {
               C={C}
             />
 
-            {/* ── Basic info ────────────────────────────────────────── */}
+            {/* ── Basic Info ─────────────────────────────────────────── */}
             <Field
               label="Product Name"
               value={name}
@@ -996,8 +968,6 @@ export default function AddProductScreen() {
               error={visibleErrors.brand}
               C={C}
             />
-
-            {/* Fix #3: description constraint moved to persistent counter below field */}
             <Field
               label="Description"
               value={description}
@@ -1011,8 +981,6 @@ export default function AddProductScreen() {
               error={visibleErrors.description}
               C={C}
             />
-
-            {/* Fix #6: price — MXN $ prefix outside input, empty placeholder */}
             <Field
               label="Price"
               value={price}
@@ -1026,12 +994,23 @@ export default function AddProductScreen() {
               C={C}
             />
 
-            {/* ── Gender ────────────────────────────────────────────── */}
-            {/* Fix #2: consistent selected/unselected visual language.  */}
-            {/* Both buttons now use the same tokens as size chips       */}
-            {/* (accentMuted fill + accent border + accent text when     */}
-            {/* selected; surface + border + textSecondary when not).    */}
-            {/* Checkmark icon reinforces the selected state.            */}
+            {/* ── Color ──────────────────────────────────────────────── */}
+            {/* One color per product record. To add a second color, create     */}
+            {/* a new product with the same name and a different color value.   */}
+            {/* The backend stores it lowercase; display capitalization happens */}
+            {/* in searchProductsForClaude before sending to the bot.           */}
+            <Field
+              label="Color"
+              value={color}
+              onChangeText={setColor}
+              onBlur={() => markTouched("color")}
+              placeholder="e.g. Negro, Blanco, Beige, Burgundy"
+              required
+              error={visibleErrors.color}
+              C={C}
+            />
+
+            {/* ── Gender ─────────────────────────────────────────────── */}
             <View style={{ marginBottom: 16 }}>
               <View
                 style={{
@@ -1101,7 +1080,7 @@ export default function AddProductScreen() {
               </View>
             </View>
 
-            {/* ── Category Group ────────────────────────────────────── */}
+            {/* ── Category ───────────────────────────────────────────── */}
             <SearchableSelect
               label="Category Group"
               value={categoryGroup}
@@ -1113,8 +1092,6 @@ export default function AddProductScreen() {
               error={visibleErrors.categoryGroup}
               C={C}
             />
-
-            {/* ── Subcategory ───────────────────────────────────────── */}
             <SearchableSelect
               label="Subcategory"
               value={subcategory}
@@ -1128,10 +1105,7 @@ export default function AddProductScreen() {
               C={C}
             />
 
-            {/* ── Sizes & Stock ────────────────────────────────────── */}
-            {/* Fix #5: removed "Tap sizes above to add them" mystery    */}
-            {/* box. A subtle inline hint in the label row replaces it.  */}
-            {/* Selected sizes appear directly in the Initial Stock card. */}
+            {/* ── Sizes & Stock ───────────────────────────────────────── */}
             <View style={{ marginBottom: 16 }}>
               <View
                 style={{
@@ -1164,7 +1138,6 @@ export default function AddProductScreen() {
                     *
                   </Text>
                 </View>
-                {/* Hint only visible when nothing is selected yet */}
                 {sizeStocks.length === 0 && (
                   <Text style={{ fontSize: 11, color: C.textTertiary }}>
                     Tap to select
@@ -1172,7 +1145,6 @@ export default function AddProductScreen() {
                 )}
               </View>
 
-              {/* Size chip grid */}
               <View
                 style={{
                   flexDirection: "row",
@@ -1212,7 +1184,6 @@ export default function AddProductScreen() {
                 })}
               </View>
 
-              {/* Stock quantity rows — only rendered when at least one size is selected */}
               {sizeStocks.length > 0 && (
                 <>
                   <Text
@@ -1259,10 +1230,7 @@ export default function AddProductScreen() {
                           {s.size}
                         </Text>
                         <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                          }}
+                          style={{ flexDirection: "row", alignItems: "center" }}
                         >
                           <TouchableOpacity
                             onPress={() => updateQty(s.size, -1)}
@@ -1330,7 +1298,7 @@ export default function AddProductScreen() {
               )}
             </View>
 
-            {/* ── Submit ────────────────────────────────────────────── */}
+            {/* ── Submit ─────────────────────────────────────────────── */}
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={isSubmitting}
