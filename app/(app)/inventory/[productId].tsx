@@ -394,6 +394,18 @@ function VariantRow({
         <Text style={{ fontSize: 14, fontWeight: "600", color: C.textPrimary }}>
           {item.size}
         </Text>
+        {item.color && item.color !== "default" && (
+          <Text
+            style={{
+              fontSize: 11,
+              color: C.textSecondary,
+              marginTop: 1,
+              textTransform: "capitalize",
+            }}
+          >
+            {item.color}
+          </Text>
+        )}
         {item.isLowStock && (
           <Text
             style={{
@@ -619,6 +631,7 @@ export default function ProductDetailScreen() {
   const [editBrand, setEditBrand] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editColor, setEditColor] = useState("");
   const [editCategoryGroup, setEditCategoryGroup] = useState("");
   const [editSubcategory, setEditSubcategory] = useState("");
   const [editSizes, setEditSizes] = useState<Size[]>([]);
@@ -639,13 +652,14 @@ export default function ProductDetailScreen() {
       skip: !validId,
     });
 
-  const { data: inventoryData } = useQuery<GetProductInventoryData>(
-    GET_PRODUCT_INVENTORY,
-    {
-      variables: { productId: validId },
-      skip: !validId,
-    },
-  );
+  const {
+    data: inventoryData,
+    loading: inventoryLoading,
+    error: inventoryError,
+  } = useQuery<GetProductInventoryData>(GET_PRODUCT_INVENTORY, {
+    variables: { productId: validId },
+    skip: !validId,
+  });
 
   const [addStock, { loading: adding }] = useMutation(ADD_STOCK, {
     refetchQueries: refetchInventory,
@@ -673,11 +687,19 @@ export default function ProductDetailScreen() {
   const isLoading = adding || removing;
   const product = productData?.product;
 
-  const activeSizes = new Set(
-    (product?.variants ?? []).map((v) => v.size.toUpperCase()),
+  // Match inventory records against product variants using the compound
+  // (size, color) key — not size alone. Filtering by size only shows every
+  // inventory record sharing a size, including orphaned records from old
+  // color values (e.g. "default") that should no longer be visible.
+  const activeVariantKeys = new Set(
+    (product?.variants ?? []).map(
+      (v) => `${v.size.toUpperCase()}-${v.color.toLowerCase()}`,
+    ),
   );
   const items = (inventoryData?.productInventory ?? []).filter((item) =>
-    activeSizes.has(item.size.toUpperCase()),
+    activeVariantKeys.has(
+      `${item.size.toUpperCase()}-${item.color.toLowerCase()}`,
+    ),
   );
   const lowCount = items.filter((i) => i.isLowStock).length;
 
@@ -714,6 +736,11 @@ export default function ProductDetailScreen() {
     setEditBrand(product.brand);
     setEditDescription(product.description);
     setEditPrice(String(product.price));
+    // In the single-color-per-product model (Option B), all variants share
+    // the same color value. Derive the editable color from the first variant.
+    // If the product somehow has no variants, fall back to empty so the user
+    // is forced to enter one rather than silently re-saving "default".
+    setEditColor(product.variants[0]?.color ?? "");
     setEditCategoryGroup(product.categoryGroup);
     setEditSubcategory(product.subcategory);
     setEditSizes(
@@ -769,8 +796,8 @@ export default function ProductDetailScreen() {
       );
     if (!editPrice.trim() || isNaN(parseFloat(editPrice)))
       return Alert.alert("Invalid", "Enter a valid price.");
+    if (!editColor.trim()) return Alert.alert("Required", "Color is required.");
 
-    const existingUrls = editImages.filter((img) => img.startsWith("http"));
     const newLocalUris = editImages.filter((img) => !img.startsWith("http"));
 
     let uploadedUrls: string[] = [];
@@ -786,11 +813,21 @@ export default function ProductDetailScreen() {
       }
     }
 
+    // Map remote URLs through unchanged; replace local URIs by *position*
+    // in the original editImages list, not by indexOf. This avoids the bug
+    // where two duplicate local URIs collide on the same uploaded URL.
+    let nextLocalIndex = 0;
     const finalImages = editImages.map((img) => {
       if (img.startsWith("http")) return img;
-      const localIndex = newLocalUris.indexOf(img);
-      return uploadedUrls[localIndex];
+      const url = uploadedUrls[nextLocalIndex];
+      nextLocalIndex++;
+      return url;
     });
+
+    // Single-color-per-product model: every variant shares the same color.
+    // editColor is required (validated above) so this never silently writes
+    // an empty or fallback color.
+    const normalizedColor = editColor.trim();
 
     updateProduct({
       variables: {
@@ -802,7 +839,10 @@ export default function ProductDetailScreen() {
           price: parseFloat(editPrice),
           categoryGroup: editCategoryGroup.trim(),
           subcategory: editSubcategory.trim(),
-          variants: editSizes.map((size) => ({ size, color: DEFAULT_COLOR })),
+          variants: editSizes.map((size) => ({
+            size,
+            color: normalizedColor,
+          })),
           images: finalImages,
         },
       },
@@ -1049,7 +1089,53 @@ export default function ProductDetailScreen() {
             )}
           </View>
 
-          {items.length === 0 ? (
+          {inventoryError ? (
+            <View
+              style={{
+                padding: 20,
+                backgroundColor: C.alertBg,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: C.alert + "40",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: C.alert,
+                  fontWeight: "600",
+                  marginBottom: 4,
+                }}
+              >
+                Couldn't load stock
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: C.textSecondary,
+                  textAlign: "center",
+                }}
+              >
+                {inventoryError.message}
+              </Text>
+            </View>
+          ) : inventoryLoading ? (
+            <View
+              style={{
+                padding: 20,
+                backgroundColor: C.surface,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: C.border,
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <ActivityIndicator size="small" color={C.accent} />
+            </View>
+          ) : items.length === 0 ? (
             <View
               style={{
                 padding: 20,
@@ -1078,7 +1164,7 @@ export default function ProductDetailScreen() {
             >
               {items.map((item, index) => (
                 <VariantRow
-                  key={item.size}
+                  key={`${item.size}-${item.color}`}
                   item={item}
                   onAdd={() => handleAdd(item)}
                   onRemove={() => handleRemove(item)}
@@ -1180,6 +1266,12 @@ export default function ProductDetailScreen() {
               value={editPrice}
               onChangeText={setEditPrice}
               keyboardType="decimal-pad"
+              C={C}
+            />
+            <EditField
+              label="Color"
+              value={editColor}
+              onChangeText={setEditColor}
               C={C}
             />
             <EditField
