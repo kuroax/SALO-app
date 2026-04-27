@@ -15,7 +15,6 @@
     "preview": {
       "distribution": "store",
       "autoIncrement": true,
-      "autoSubmit": true,
       "ios": {
         "simulator": false
       },
@@ -27,7 +26,6 @@
     "production": {
       "distribution": "store",
       "autoIncrement": true,
-      "autoSubmit": true,
       "ios": {
         "simulator": false
       },
