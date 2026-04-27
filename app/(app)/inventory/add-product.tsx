@@ -24,6 +24,7 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_IMAGES = 5;
+const DESCRIPTION_MIN = 10;
 
 // ─── Cloudinary ───────────────────────────────────────────────────────────────
 
@@ -61,10 +62,11 @@ const CREATE_PRODUCT = gql`
   }
 `;
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Form types ───────────────────────────────────────────────────────────────
 
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
+const SIZES = ["XS", "S", "M", "L", "XL"] as const;
 type Size = (typeof SIZES)[number];
+
 const GENDERS = [
   { value: "men", label: "Men" },
   { value: "women", label: "Women" },
@@ -74,6 +76,25 @@ type Gender = "men" | "women";
 const DEFAULT_COLOR = "default";
 
 type SizeStock = { size: Size; quantity: number };
+
+// Fields that participate in inline validation
+type FormErrors = Partial<{
+  name: string;
+  brand: string;
+  description: string;
+  price: string;
+  categoryGroup: string;
+  subcategory: string;
+}>;
+
+type FormFields = {
+  name: string;
+  brand: string;
+  description: string;
+  price: string;
+  categoryGroup: string;
+  subcategory: string;
+};
 
 // ─── Category Map (gender-aware) ─────────────────────────────────────────────
 
@@ -102,66 +123,182 @@ const CATEGORY_MAP: Record<string, Record<string, string[]>> = {
   },
 };
 
+// ─── Validation ───────────────────────────────────────────────────────────────
+// Pure function — called on every render so visible errors are always in sync
+// with the current field values. No separate "run validation" step needed.
+
+function validateFields(f: FormFields): FormErrors {
+  const errs: FormErrors = {};
+  if (!f.name.trim()) errs.name = "Product name is required";
+  if (!f.brand.trim()) errs.brand = "Brand is required";
+  if (f.description.trim().length < DESCRIPTION_MIN)
+    errs.description = `Minimum ${DESCRIPTION_MIN} characters required`;
+  if (!f.price.trim() || isNaN(parseFloat(f.price)) || parseFloat(f.price) < 0)
+    errs.price = "Enter a valid price";
+  if (!f.categoryGroup.trim())
+    errs.categoryGroup = "Category group is required";
+  if (!f.subcategory.trim()) errs.subcategory = "Subcategory is required";
+  return errs;
+}
+
 // ─── Field ────────────────────────────────────────────────────────────────────
+// Fix #1: required field indicators (* marker + inline error text)
+// Fix #3: description character counter (via showCounter + minLength)
+// Fix #6: price prefix outside the input (via prefix prop)
+// Fix #6: empty price placeholder instead of misleading "0.00"
 
 function Field({
   label,
   value,
   onChangeText,
+  onBlur,
   placeholder,
   multiline,
   keyboardType,
+  required,
+  error,
+  prefix,
+  showCounter,
+  minLength,
   C,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
+  onBlur?: () => void;
   placeholder: string;
   multiline?: boolean;
   keyboardType?: "default" | "decimal-pad";
+  required?: boolean;
+  error?: string;
+  // Rendered as a text prefix inside the input row (e.g. "MXN $")
+  prefix?: string;
+  // Shows a live "N / min" counter below the field
+  showCounter?: boolean;
+  minLength?: number;
   C: ThemeColors;
 }) {
+  const hasError = !!error;
+  const charCount = value.trim().length;
+  const counterMet = showCounter && minLength ? charCount >= minLength : false;
+
   return (
     <View style={{ marginBottom: 16 }}>
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 1,
-          color: C.textTertiary,
-          textTransform: "uppercase",
-          marginBottom: 8,
-        }}
+      {/* Label row */}
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
       >
-        {label}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={C.textTertiary}
-        keyboardType={keyboardType ?? "default"}
-        autoCapitalize="none"
-        autoCorrect={false}
-        multiline={multiline}
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 1,
+            color: C.textTertiary,
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </Text>
+        {required && (
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              color: C.alert,
+              marginLeft: 3,
+            }}
+          >
+            *
+          </Text>
+        )}
+      </View>
+
+      {/* Input container — wraps prefix + TextInput in a row */}
+      <View
         style={{
+          flexDirection: "row",
+          alignItems: multiline ? "flex-start" : "center",
           backgroundColor: C.surface,
           borderWidth: 1,
-          borderColor: C.border,
+          borderColor: hasError ? C.alert : C.border,
           borderRadius: 12,
           paddingVertical: 13,
           paddingHorizontal: 16,
-          fontSize: 15,
-          color: C.textPrimary,
-          textAlignVertical: multiline ? "top" : "center",
-          minHeight: multiline ? 100 : undefined,
         }}
-      />
+      >
+        {prefix && (
+          <Text
+            style={{
+              fontSize: 15,
+              color: C.textSecondary,
+              marginRight: 4,
+              lineHeight: 20,
+            }}
+          >
+            {prefix}
+          </Text>
+        )}
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          placeholderTextColor={C.textTertiary}
+          keyboardType={keyboardType ?? "default"}
+          autoCapitalize="none"
+          autoCorrect={false}
+          multiline={multiline}
+          style={{
+            flex: 1,
+            fontSize: 15,
+            color: C.textPrimary,
+            textAlignVertical: multiline ? "top" : "center",
+            minHeight: multiline ? 80 : undefined,
+            padding: 0,
+          }}
+        />
+      </View>
+
+      {/* Character counter — persists below field, turns accent color when met */}
+      {showCounter && minLength && (
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginTop: 5,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              color: counterMet ? C.success : C.textTertiary,
+            }}
+          >
+            Min. {minLength} characters
+          </Text>
+          <Text
+            style={{
+              fontSize: 11,
+              color: counterMet ? C.success : C.textTertiary,
+            }}
+          >
+            {charCount} / {minLength}
+          </Text>
+        </View>
+      )}
+
+      {/* Inline error — only shown after user has interacted with the field */}
+      {hasError && (
+        <Text style={{ fontSize: 12, color: C.alert, marginTop: 4 }}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 }
 
 // ─── Searchable Select ────────────────────────────────────────────────────────
+// Fix #1: required marker and inline error support added
 
 function SearchableSelect({
   label,
@@ -170,6 +307,9 @@ function SearchableSelect({
   options,
   placeholder,
   disabled,
+  required,
+  error,
+  onBlur,
   C,
 }: {
   label: string;
@@ -178,6 +318,9 @@ function SearchableSelect({
   options: string[];
   placeholder: string;
   disabled?: boolean;
+  required?: boolean;
+  error?: string;
+  onBlur?: () => void;
   C: ThemeColors;
 }) {
   const [query, setQuery] = useState(value);
@@ -196,6 +339,7 @@ function SearchableSelect({
   const showCustomOption = query.trim().length > 0 && !exactMatch;
   const showDropdown =
     open && !disabled && (filtered.length > 0 || showCustomOption);
+  const hasError = !!error;
 
   const handleSelect = (v: string) => {
     setQuery(v);
@@ -210,18 +354,35 @@ function SearchableSelect({
 
   return (
     <View style={{ marginBottom: 16 }}>
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 1,
-          color: disabled ? C.textTertiary + "60" : C.textTertiary,
-          textTransform: "uppercase",
-          marginBottom: 8,
-        }}
+      {/* Label row */}
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
       >
-        {label}
-      </Text>
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 1,
+            color: disabled ? C.textTertiary + "60" : C.textTertiary,
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </Text>
+        {required && !disabled && (
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              color: C.alert,
+              marginLeft: 3,
+            }}
+          >
+            *
+          </Text>
+        )}
+      </View>
+
       <TouchableOpacity
         activeOpacity={1}
         onPress={() => {
@@ -232,7 +393,11 @@ function SearchableSelect({
           alignItems: "center",
           backgroundColor: disabled ? C.surface + "80" : C.surface,
           borderWidth: 1,
-          borderColor: open && !disabled ? C.accent : C.border,
+          borderColor: hasError
+            ? C.alert
+            : open && !disabled
+              ? C.accent
+              : C.border,
           borderRadius: 12,
           paddingHorizontal: 16,
           paddingVertical: 13,
@@ -243,6 +408,10 @@ function SearchableSelect({
           onChangeText={handleChangeText}
           onFocus={() => {
             if (!disabled) setOpen(true);
+          }}
+          onBlur={() => {
+            setOpen(false);
+            onBlur?.();
           }}
           placeholder={disabled ? "Select a category group first" : placeholder}
           placeholderTextColor={C.textTertiary}
@@ -262,6 +431,7 @@ function SearchableSelect({
           color={C.textTertiary}
         />
       </TouchableOpacity>
+
       {showDropdown && (
         <View
           style={{
@@ -322,11 +492,26 @@ function SearchableSelect({
           )}
         </View>
       )}
+
+      {/* Inline error */}
+      {hasError && (
+        <Text style={{ fontSize: 12, color: C.alert, marginTop: 4 }}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 }
 
 // ─── Image Grid ───────────────────────────────────────────────────────────────
+// Fix #4: 5-slot horizontal strip replaces single large add button.
+// All 5 slots are always visible — filled slots show thumbnail + remove,
+// the next available slot is the active add target (accent border + + icon),
+// subsequent empty slots are shown as neutral placeholders.
+// The first slot is labeled "MAIN" to replace the now-redundant hint text.
+
+const TILE_SIZE = 72;
+const TILE_GAP = 8;
 
 function ImageGrid({
   images,
@@ -339,8 +524,6 @@ function ImageGrid({
   onRemove: (index: number) => void;
   C: ThemeColors;
 }) {
-  const canAdd = images.length < MAX_IMAGES;
-
   return (
     <View style={{ marginBottom: 24 }}>
       <View
@@ -348,7 +531,7 @@ function ImageGrid({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 8,
+          marginBottom: 10,
         }}
       >
         <Text
@@ -367,97 +550,132 @@ function ImageGrid({
         </Text>
       </View>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {images.map((uri, index) => (
-          <View
-            key={index}
-            style={{
-              width: "30%",
-              aspectRatio: 1,
-              marginRight: index % 3 !== 2 ? "5%" : 0,
-              marginBottom: 10,
-              borderRadius: 12,
-              overflow: "hidden",
-              borderWidth: 1,
-              borderColor: C.border,
-            }}
-          >
-            <Image
-              source={{ uri }}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            />
-            {/* Remove button */}
+      {/* Horizontal strip — always shows all 5 slots */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingRight: 4 }}
+      >
+        {Array.from({ length: MAX_IMAGES }).map((_, index) => {
+          const uri = images[index];
+          const isFilled = !!uri;
+          const isMain = index === 0;
+          // The next empty slot after all filled images is the active add target
+          const isNextSlot = index === images.length;
+
+          if (isFilled) {
+            return (
+              <View
+                key={index}
+                style={{
+                  width: TILE_SIZE,
+                  height: TILE_SIZE,
+                  marginRight: TILE_GAP,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  borderWidth: 1,
+                  borderColor: C.border,
+                }}
+              >
+                <Image
+                  source={{ uri }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="cover"
+                />
+                {/* Remove */}
+                <TouchableOpacity
+                  onPress={() => onRemove(index)}
+                  activeOpacity={0.8}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(0,0,0,0.65)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="close" size={11} color="#fff" />
+                </TouchableOpacity>
+                {/* Main badge */}
+                {isMain && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 4,
+                      left: 4,
+                      backgroundColor: C.accent,
+                      borderRadius: 4,
+                      paddingHorizontal: 4,
+                      paddingVertical: 2,
+                    }}
+                  >
+                    <Text
+                      style={{ fontSize: 8, fontWeight: "700", color: "#fff" }}
+                    >
+                      MAIN
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          }
+
+          // Empty slot
+          return (
             <TouchableOpacity
-              onPress={() => onRemove(index)}
-              activeOpacity={0.8}
+              key={index}
+              onPress={isNextSlot ? onAdd : undefined}
+              activeOpacity={isNextSlot ? 0.8 : 1}
               style={{
-                position: "absolute",
-                top: 5,
-                right: 5,
-                width: 22,
-                height: 22,
-                borderRadius: 11,
-                backgroundColor: "rgba(0,0,0,0.6)",
+                width: TILE_SIZE,
+                height: TILE_SIZE,
+                marginRight: index < MAX_IMAGES - 1 ? TILE_GAP : 0,
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: isNextSlot ? C.accent : C.border + "50",
+                borderStyle: "dashed",
+                backgroundColor: C.surface,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="close" size={13} color="#fff" />
+              {isNextSlot ? (
+                <>
+                  <Ionicons name="add" size={20} color={C.accent} />
+                  {isMain && (
+                    <Text
+                      style={{
+                        fontSize: 8,
+                        color: C.accent,
+                        marginTop: 3,
+                        fontWeight: "700",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      MAIN
+                    </Text>
+                  )}
+                </>
+              ) : (
+                // Subsequent empty slots — visible but not interactive
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    borderWidth: 1,
+                    borderColor: C.border + "60",
+                  }}
+                />
+              )}
             </TouchableOpacity>
-            {/* Primary badge */}
-            {index === 0 && (
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 5,
-                  left: 5,
-                  backgroundColor: C.accent,
-                  borderRadius: 4,
-                  paddingHorizontal: 5,
-                  paddingVertical: 2,
-                }}
-              >
-                <Text style={{ fontSize: 9, fontWeight: "700", color: "#fff" }}>
-                  MAIN
-                </Text>
-              </View>
-            )}
-          </View>
-        ))}
-
-        {/* Add button */}
-        {canAdd && (
-          <TouchableOpacity
-            onPress={onAdd}
-            activeOpacity={0.8}
-            style={{
-              width: "30%",
-              aspectRatio: 1,
-              marginRight: images.length % 3 !== 2 ? "5%" : 0,
-              marginBottom: 10,
-              borderRadius: 12,
-              borderWidth: 1.5,
-              borderColor: C.border,
-              borderStyle: "dashed",
-              backgroundColor: C.surface,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="add" size={24} color={C.accent} />
-            <Text style={{ fontSize: 10, color: C.textTertiary, marginTop: 3 }}>
-              Add photo
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {images.length === 0 && (
-        <Text style={{ fontSize: 12, color: C.textTertiary, marginTop: 4 }}>
-          Add up to {MAX_IMAGES} photos. The first one will be the main image.
-        </Text>
-      )}
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -473,12 +691,19 @@ export default function AddProductScreen() {
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [gender, setGender] = useState<Gender>("men");
+  const [gender, setGender] = useState<Gender>("women");
   const [categoryGroup, setCategoryGroup] = useState("");
   const [subcategory, setSubcategory] = useState("");
   const [sizeStocks, setSizeStocks] = useState<SizeStock[]>([]);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // touched tracks which fields the user has interacted with.
+  // Errors only display for touched fields — on submit we mark all as touched
+  // so every error surfaces at once without waiting for individual blurs.
+  const [touched, setTouched] = useState<
+    Partial<Record<keyof FormErrors, boolean>>
+  >({});
 
   const [createProduct, { loading: creating }] = useMutation<{
     createProduct: { id: string; name: string };
@@ -486,8 +711,29 @@ export default function AddProductScreen() {
 
   const [addStock] = useMutation(ADD_STOCK);
 
+  // Computed every render — pure string checks, negligible cost
+  const formErrors = validateFields({
+    name,
+    brand,
+    description,
+    price,
+    categoryGroup,
+    subcategory,
+  });
+
+  // Only the errors for fields the user has touched are shown inline
+  const visibleErrors: FormErrors = Object.fromEntries(
+    Object.entries(formErrors).filter(([k]) => touched[k as keyof FormErrors]),
+  ) as FormErrors;
+
+  const markTouched = (field: keyof FormErrors) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
   const genderMap = gender === "men" ? CATEGORY_MAP.men : CATEGORY_MAP.women;
-  const categoryGroups = Object.keys({ ...genderMap, ...CATEGORY_MAP.general });
+  const categoryGroups = Object.keys({
+    ...genderMap,
+    ...CATEGORY_MAP.general,
+  });
   const fullMap = { ...genderMap, ...CATEGORY_MAP.general };
   const subcategoryOptions: string[] = categoryGroup
     ? (fullMap[categoryGroup] ?? [])
@@ -560,22 +806,31 @@ export default function AddProductScreen() {
   };
 
   // ── Submit ────────────────────────────────────────────────────────────────
+  // Mark all fields as touched first so all inline errors surface at once.
+  // Removed individual Alert.alert calls for field errors — errors are now
+  // shown inline, which is less disruptive and more scannable on a long form.
 
   const handleSubmit = async () => {
-    if (!name.trim())
-      return Alert.alert("Required", "Product name is required.");
-    if (!brand.trim()) return Alert.alert("Required", "Brand is required.");
-    if (description.trim().length < 10)
-      return Alert.alert(
-        "Required",
-        "Description must be at least 10 characters.",
-      );
-    if (!price.trim() || isNaN(parseFloat(price)) || parseFloat(price) < 0)
-      return Alert.alert("Invalid", "Enter a valid price.");
-    if (!categoryGroup.trim())
-      return Alert.alert("Required", "Category group is required.");
-    if (!subcategory.trim())
-      return Alert.alert("Required", "Subcategory is required.");
+    // Surface all inline errors simultaneously
+    setTouched({
+      name: true,
+      brand: true,
+      description: true,
+      price: true,
+      categoryGroup: true,
+      subcategory: true,
+    });
+
+    const errs = validateFields({
+      name,
+      brand,
+      description,
+      price,
+      categoryGroup,
+      subcategory,
+    });
+
+    if (Object.keys(errs).length > 0) return;
 
     let images: string[] = [];
     if (imageUris.length > 0) {
@@ -701,10 +956,18 @@ export default function AddProductScreen() {
             >
               Fill in the details to add a new product
             </Text>
+
+            {/* Required fields note */}
+            <Text
+              style={{ fontSize: 11, color: C.textTertiary, marginTop: 10 }}
+            >
+              <Text style={{ color: C.alert }}>*</Text> Required fields
+            </Text>
           </View>
 
           <View style={{ paddingHorizontal: 20 }}>
             {/* ── Image grid ────────────────────────────────────────── */}
+            {/* Fix #4: 5-slot strip replaces single tile */}
             <ImageGrid
               images={imageUris}
               onAdd={pickImage}
@@ -717,49 +980,90 @@ export default function AddProductScreen() {
               label="Product Name"
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Black Hoodie"
+              onBlur={() => markTouched("name")}
+              placeholder="e.g. Align Legging"
+              required
+              error={visibleErrors.name}
               C={C}
             />
             <Field
               label="Brand"
               value={brand}
               onChangeText={setBrand}
-              placeholder="e.g. Nike"
+              onBlur={() => markTouched("brand")}
+              placeholder="e.g. Lululemon"
+              required
+              error={visibleErrors.brand}
               C={C}
             />
+
+            {/* Fix #3: description constraint moved to persistent counter below field */}
             <Field
               label="Description"
               value={description}
               onChangeText={setDescription}
-              placeholder="Min. 10 characters…"
+              onBlur={() => markTouched("description")}
+              placeholder="Write a short product description…"
               multiline
+              required
+              showCounter
+              minLength={DESCRIPTION_MIN}
+              error={visibleErrors.description}
               C={C}
             />
+
+            {/* Fix #6: price — MXN $ prefix outside input, empty placeholder */}
             <Field
-              label="Price (MXN)"
+              label="Price"
               value={price}
               onChangeText={setPrice}
-              placeholder="0.00"
+              onBlur={() => markTouched("price")}
+              placeholder="e.g. 1,990"
               keyboardType="decimal-pad"
+              prefix="MXN $"
+              required
+              error={visibleErrors.price}
               C={C}
             />
 
             {/* ── Gender ────────────────────────────────────────────── */}
+            {/* Fix #2: consistent selected/unselected visual language.  */}
+            {/* Both buttons now use the same tokens as size chips       */}
+            {/* (accentMuted fill + accent border + accent text when     */}
+            {/* selected; surface + border + textSecondary when not).    */}
+            {/* Checkmark icon reinforces the selected state.            */}
             <View style={{ marginBottom: 16 }}>
-              <Text
+              <View
                 style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
+                  flexDirection: "row",
+                  alignItems: "center",
                   marginBottom: 8,
                 }}
               >
-                Gender
-              </Text>
-              <View style={{ flexDirection: "row" }}>
-                {GENDERS.map((g, i) => {
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 1,
+                    color: C.textTertiary,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Gender
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: C.alert,
+                    marginLeft: 3,
+                  }}
+                >
+                  *
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {GENDERS.map((g) => {
                   const selected = gender === g.value;
                   return (
                     <TouchableOpacity
@@ -773,10 +1077,15 @@ export default function AddProductScreen() {
                         backgroundColor: selected ? C.accentMuted : C.surface,
                         borderWidth: 1,
                         borderColor: selected ? C.accent : C.border,
+                        flexDirection: "row",
                         alignItems: "center",
-                        marginRight: i === 0 ? 8 : 0,
+                        justifyContent: "center",
+                        gap: 6,
                       }}
                     >
+                      {selected && (
+                        <Ionicons name="checkmark" size={14} color={C.accent} />
+                      )}
                       <Text
                         style={{
                           fontSize: 14,
@@ -797,8 +1106,11 @@ export default function AddProductScreen() {
               label="Category Group"
               value={categoryGroup}
               onSelect={handleCategoryGroupSelect}
+              onBlur={() => markTouched("categoryGroup")}
               options={categoryGroups}
               placeholder="e.g. Tops"
+              required
+              error={visibleErrors.categoryGroup}
               C={C}
             />
 
@@ -807,31 +1119,65 @@ export default function AddProductScreen() {
               label="Subcategory"
               value={subcategory}
               onSelect={setSubcategory}
+              onBlur={() => markTouched("subcategory")}
               options={subcategoryOptions}
-              placeholder="e.g. Hoodies"
+              placeholder="e.g. Crop Tops"
               disabled={!categoryGroup.trim()}
+              required
+              error={visibleErrors.subcategory}
               C={C}
             />
 
             {/* ── Sizes & Stock ────────────────────────────────────── */}
+            {/* Fix #5: removed "Tap sizes above to add them" mystery    */}
+            {/* box. A subtle inline hint in the label row replaces it.  */}
+            {/* Selected sizes appear directly in the Initial Stock card. */}
             <View style={{ marginBottom: 16 }}>
-              <Text
+              <View
                 style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1,
-                  color: C.textTertiary,
-                  textTransform: "uppercase",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   marginBottom: 8,
                 }}
               >
-                Available Sizes
-              </Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      letterSpacing: 1,
+                      color: C.textTertiary,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Available Sizes
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: C.alert,
+                      marginLeft: 3,
+                    }}
+                  >
+                    *
+                  </Text>
+                </View>
+                {/* Hint only visible when nothing is selected yet */}
+                {sizeStocks.length === 0 && (
+                  <Text style={{ fontSize: 11, color: C.textTertiary }}>
+                    Tap to select
+                  </Text>
+                )}
+              </View>
+
+              {/* Size chip grid */}
               <View
                 style={{
                   flexDirection: "row",
                   flexWrap: "wrap",
-                  marginBottom: 12,
+                  marginBottom: sizeStocks.length > 0 ? 12 : 0,
                 }}
               >
                 {SIZES.map((s) => {
@@ -866,22 +1212,8 @@ export default function AddProductScreen() {
                 })}
               </View>
 
-              {sizeStocks.length === 0 ? (
-                <View
-                  style={{
-                    padding: 16,
-                    backgroundColor: C.surface,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: C.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: C.textTertiary }}>
-                    Tap sizes above to add them
-                  </Text>
-                </View>
-              ) : (
+              {/* Stock quantity rows — only rendered when at least one size is selected */}
+              {sizeStocks.length > 0 && (
                 <>
                   <Text
                     style={{
@@ -927,7 +1259,10 @@ export default function AddProductScreen() {
                           {s.size}
                         </Text>
                         <View
-                          style={{ flexDirection: "row", alignItems: "center" }}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
                         >
                           <TouchableOpacity
                             onPress={() => updateQty(s.size, -1)}
