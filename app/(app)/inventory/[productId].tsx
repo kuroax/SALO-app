@@ -18,6 +18,7 @@ import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Image,
   Modal,
@@ -30,16 +31,24 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_IMAGES = 5;
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 type Size = (typeof SIZES)[number];
-const DEFAULT_COLOR = "default";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const CAROUSEL_WIDTH = SCREEN_WIDTH - 40; // paddingHorizontal: 20 on each side
+const CAROUSEL_WIDTH = SCREEN_WIDTH - 40;
+
+// Stock bar: 20 units = full bar width
+const STOCK_BAR_TOTAL = 64;
+const STOCK_BAR_REF = 20;
+
+// Scroll threshold at which the sticky header fully appears
+const STICKY_FADE_START = 160;
+const STICKY_FADE_END = 220;
 
 // ─── Cloudinary ───────────────────────────────────────────────────────────────
 
@@ -59,7 +68,10 @@ async function uploadToCloudinary(uri: string): Promise<string> {
   );
   if (!res.ok) throw new Error("Image upload failed");
   const data = await res.json();
-  return data.secure_url as string;
+  if (!data.secure_url || typeof data.secure_url !== "string") {
+    throw new Error("Image upload failed: invalid response from server");
+  }
+  return data.secure_url;
 }
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
@@ -120,43 +132,141 @@ type GetProductInventoryData = { productInventory: InventoryItem[] };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const currencyFormatter = new Intl.NumberFormat("es-MX", {
-  style: "currency",
-  currency: "MXN",
+const priceFormatter = new Intl.NumberFormat("es-MX", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
 });
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-MX", {
-    day: "2-digit",
+// Explicit en-US locale prevents the device-locale "abr 2026" bug
+// (same issue flagged across Dashboard and Orders screens)
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
+}
+
+// ─── Sticky Header ────────────────────────────────────────────────────────────
+
+function StickyHeader({
+  productName,
+  opacity,
+  insetTop,
+  onBack,
+  onMore,
+  C,
+}: {
+  productName: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  opacity: Animated.AnimatedInterpolation<any>;
+  insetTop: number;
+  onBack: () => void;
+  onMore: () => void;
+  C: ThemeColors;
+}) {
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        opacity,
+        backgroundColor: C.background,
+        borderBottomWidth: 1,
+        borderBottomColor: C.border,
+        paddingTop: insetTop + 6,
+        paddingBottom: 12,
+        paddingHorizontal: 20,
+        flexDirection: "row",
+        alignItems: "center",
+      }}
+    >
+      <TouchableOpacity
+        onPress={onBack}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="arrow-back" size={20} color={C.accent} />
+      </TouchableOpacity>
+      <Text
+        numberOfLines={1}
+        style={{
+          flex: 1,
+          fontSize: 15,
+          fontWeight: "700",
+          color: C.textPrimary,
+          textAlign: "center",
+          marginHorizontal: 12,
+        }}
+      >
+        {productName}
+      </Text>
+      <TouchableOpacity
+        onPress={onMore}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons
+          name="ellipsis-horizontal"
+          size={20}
+          color={C.textSecondary}
+        />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status, C }: { status: string; C: ThemeColors }) {
+  const isActive = status === "active";
+  const isInactive = status === "inactive";
+  const bg = isActive ? C.successBg : isInactive ? C.alertBg : C.surface;
+  const text = isActive ? C.success : isInactive ? C.alert : C.textSecondary;
+  return (
+    <View
+      style={{
+        backgroundColor: bg,
+        borderRadius: 6,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 10,
+          fontWeight: "700",
+          color: text,
+          letterSpacing: 0.5,
+        }}
+      >
+        {status.toUpperCase()}
+      </Text>
+    </View>
+  );
 }
 
 // ─── Image Carousel ───────────────────────────────────────────────────────────
 
 function ImageCarousel({ images, C }: { images: string[]; C: ThemeColors }) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
-
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / CAROUSEL_WIDTH);
     setActiveIndex(index);
   };
-
   if (images.length === 0) return null;
-
   return (
     <View style={{ marginBottom: 16 }}>
-      {/* Slides */}
       <ScrollView
-        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
         style={{ borderRadius: 16, overflow: "hidden" }}
-        contentContainerStyle={{ borderRadius: 16, overflow: "hidden" }}
+        contentContainerStyle={{ borderRadius: 16 }}
       >
         {images.map((uri, i) => (
           <View
@@ -178,8 +288,6 @@ function ImageCarousel({ images, C }: { images: string[]; C: ThemeColors }) {
           </View>
         ))}
       </ScrollView>
-
-      {/* Pagination dots */}
       {images.length > 1 && (
         <View
           style={{
@@ -203,8 +311,6 @@ function ImageCarousel({ images, C }: { images: string[]; C: ThemeColors }) {
           ))}
         </View>
       )}
-
-      {/* Counter badge */}
       {images.length > 1 && (
         <View
           style={{
@@ -226,55 +332,19 @@ function ImageCarousel({ images, C }: { images: string[]; C: ThemeColors }) {
   );
 }
 
-// ─── Section ──────────────────────────────────────────────────────────────────
-
-function Section({
-  title,
-  children,
-  C,
-}: {
-  title: string;
-  children: React.ReactNode;
-  C: ThemeColors;
-}) {
-  return (
-    <View style={{ marginBottom: 20 }}>
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 1.5,
-          color: C.textTertiary,
-          textTransform: "uppercase",
-          marginBottom: 10,
-        }}
-      >
-        {title}
-      </Text>
-      <View
-        style={{
-          backgroundColor: C.surface,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: C.border,
-          overflow: "hidden",
-        }}
-      >
-        {children}
-      </View>
-    </View>
-  );
-}
+// ─── Info Row ─────────────────────────────────────────────────────────────────
 
 function InfoRow({
   label,
   value,
   last,
+  muted,
   C,
 }: {
   label: string;
   value: string;
   last?: boolean;
+  muted?: boolean;
   C: ThemeColors;
 }) {
   return (
@@ -283,18 +353,25 @@ function InfoRow({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingVertical: 12,
+        paddingVertical: muted ? 10 : 12,
         paddingHorizontal: 16,
         borderBottomWidth: last ? 0 : 1,
         borderBottomColor: C.border,
       }}
     >
-      <Text style={{ fontSize: 13, color: C.textSecondary }}>{label}</Text>
       <Text
         style={{
-          fontSize: 13,
-          fontWeight: "600",
-          color: C.textPrimary,
+          fontSize: muted ? 12 : 13,
+          color: muted ? C.textTertiary : C.textSecondary,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          fontSize: muted ? 12 : 13,
+          fontWeight: muted ? "400" : "600",
+          color: muted ? C.textTertiary : C.textPrimary,
           flex: 1,
           textAlign: "right",
           marginLeft: 16,
@@ -307,64 +384,106 @@ function InfoRow({
   );
 }
 
-// ─── Edit Field ───────────────────────────────────────────────────────────────
+// ─── Read-Only Stock Row ──────────────────────────────────────────────────────
+// Shown when stockEditMode is false. A green progress bar replaces the
+// +/– steppers so the owner can scan quantities at a glance without
+// accidentally tapping an adjustment.
 
-function EditField({
-  label,
-  value,
-  onChangeText,
-  multiline,
-  keyboardType,
+function ReadOnlyStockRow({
+  item,
+  isLast,
   C,
 }: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  multiline?: boolean;
-  keyboardType?: "default" | "decimal-pad";
+  item: InventoryItem;
+  isLast: boolean;
   C: ThemeColors;
 }) {
+  const fillRatio = Math.min(item.quantity / STOCK_BAR_REF, 1);
+  const barFill = fillRatio * STOCK_BAR_TOTAL;
+  const barColor = item.isLowStock ? C.pending : C.success;
+
   return (
-    <View style={{ marginBottom: 14 }}>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 13,
+        paddingHorizontal: 16,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: C.border,
+      }}
+    >
+      {/* Size + color */}
+      <View style={{ width: 60 }}>
+        <Text style={{ fontSize: 14, fontWeight: "600", color: C.textPrimary }}>
+          {item.size}
+        </Text>
+        {item.color && item.color !== "default" && (
+          <Text
+            style={{
+              fontSize: 11,
+              color: C.textSecondary,
+              marginTop: 1,
+              textTransform: "capitalize",
+            }}
+          >
+            {item.color}
+          </Text>
+        )}
+      </View>
+
+      {/* Bar */}
+      <View style={{ flex: 1, marginHorizontal: 14 }}>
+        <View
+          style={{
+            width: STOCK_BAR_TOTAL,
+            height: 4,
+            backgroundColor: C.border,
+            borderRadius: 2,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              width: barFill,
+              height: 4,
+              backgroundColor: barColor,
+              borderRadius: 2,
+            }}
+          />
+        </View>
+        {item.isLowStock && (
+          <Text style={{ fontSize: 10, color: C.pending, marginTop: 3 }}>
+            Low · min {item.lowStockThreshold}
+          </Text>
+        )}
+      </View>
+
+      {/* Quantity */}
       <Text
         style={{
-          fontSize: 11,
+          fontSize: 20,
           fontWeight: "700",
-          letterSpacing: 1,
-          color: C.textTertiary,
-          textTransform: "uppercase",
-          marginBottom: 6,
+          color: item.isLowStock ? C.pending : C.textPrimary,
+          minWidth: 28,
+          textAlign: "right",
         }}
       >
-        {label}
+        {item.quantity}
       </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType ?? "default"}
-        autoCapitalize="none"
-        autoCorrect={false}
-        multiline={multiline}
-        style={{
-          backgroundColor: C.background,
-          borderWidth: 1,
-          borderColor: C.border,
-          borderRadius: 10,
-          paddingVertical: 11,
-          paddingHorizontal: 14,
-          fontSize: 14,
-          color: C.textPrimary,
-          textAlignVertical: multiline ? "top" : "center",
-          minHeight: multiline ? 80 : undefined,
-        }}
-      />
+      <Text style={{ fontSize: 11, color: C.textSecondary, marginLeft: 6 }}>
+        units
+      </Text>
     </View>
   );
 }
 
-// ─── Variant Row ──────────────────────────────────────────────────────────────
+// ─── Editable Stock Row ───────────────────────────────────────────────────────
+// Shown when stockEditMode is true. Each tap immediately commits via the
+// ADD_STOCK / REMOVE_STOCK mutations — same behaviour as before, now gated
+// behind an explicit "Edit Stock" action.
 
-function VariantRow({
+function EditableStockRow({
   item,
   onAdd,
   onRemove,
@@ -488,6 +607,61 @@ function VariantRow({
   );
 }
 
+// ─── Edit Field ───────────────────────────────────────────────────────────────
+
+function EditField({
+  label,
+  value,
+  onChangeText,
+  multiline,
+  keyboardType,
+  C,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  multiline?: boolean;
+  keyboardType?: "default" | "decimal-pad";
+  C: ThemeColors;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          letterSpacing: 1,
+          color: C.textTertiary,
+          textTransform: "uppercase",
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType ?? "default"}
+        autoCapitalize="none"
+        autoCorrect={false}
+        multiline={multiline}
+        style={{
+          backgroundColor: C.background,
+          borderWidth: 1,
+          borderColor: C.border,
+          borderRadius: 10,
+          paddingVertical: 11,
+          paddingHorizontal: 14,
+          fontSize: 14,
+          color: C.textPrimary,
+          textAlignVertical: multiline ? "top" : "center",
+          minHeight: multiline ? 80 : undefined,
+        }}
+      />
+    </View>
+  );
+}
+
 // ─── Edit Image Grid ──────────────────────────────────────────────────────────
 
 function EditImageGrid({
@@ -502,7 +676,6 @@ function EditImageGrid({
   C: ThemeColors;
 }) {
   const canAdd = images.length < MAX_IMAGES;
-
   return (
     <View style={{ marginBottom: 20 }}>
       <View
@@ -528,7 +701,6 @@ function EditImageGrid({
           {images.length}/{MAX_IMAGES}
         </Text>
       </View>
-
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {images.map((uri, index) => (
           <View
@@ -585,7 +757,6 @@ function EditImageGrid({
             )}
           </View>
         ))}
-
         {canAdd && (
           <TouchableOpacity
             onPress={onAdd}
@@ -625,7 +796,9 @@ export default function ProductDetailScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
+  // ── Edit modal state ──────────────────────────────────────────────────────
   const [editVisible, setEditVisible] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBrand, setEditBrand] = useState("");
@@ -638,6 +811,23 @@ export default function ProductDetailScreen() {
   const [editImages, setEditImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  // ── UX state ──────────────────────────────────────────────────────────────
+  // stockEditMode: gates the +/– steppers behind an intentional tap.
+  // Default read-only prevents accidental stock mutations on scroll.
+  const [stockEditMode, setStockEditMode] = useState(false);
+  // descriptionExpanded: collapses long marketing copy to 3 lines by default
+  // so the Stock section stays visible without scrolling.
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
+  // ── Animated scroll for sticky header ────────────────────────────────────
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const stickyOpacity = scrollY.interpolate({
+    inputRange: [STICKY_FADE_START, STICKY_FADE_END],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
+  // ── Validation ────────────────────────────────────────────────────────────
   const validId =
     typeof productId === "string" && productId.length > 0 ? productId : null;
 
@@ -646,6 +836,7 @@ export default function ProductDetailScreen() {
   ];
   const refetchProduct = [{ query: GET_PRODUCT, variables: { id: validId } }];
 
+  // ── Queries ───────────────────────────────────────────────────────────────
   const { data: productData, loading: productLoading } =
     useQuery<GetProductData>(GET_PRODUCT, {
       variables: { id: validId },
@@ -661,12 +852,14 @@ export default function ProductDetailScreen() {
     skip: !validId,
   });
 
+  // ── Mutations ─────────────────────────────────────────────────────────────
   const [addStock, { loading: adding }] = useMutation(ADD_STOCK, {
     refetchQueries: refetchInventory,
   });
   const [removeStock, { loading: removing }] = useMutation(REMOVE_STOCK, {
     refetchQueries: refetchInventory,
   });
+
   const [updateProduct, { loading: updating }] = useMutation(UPDATE_PRODUCT, {
     refetchQueries: [...refetchProduct, ...refetchInventory],
     onCompleted: () => {
@@ -675,6 +868,7 @@ export default function ProductDetailScreen() {
     },
     onError: (err) => Alert.alert("Error", err.message),
   });
+
   const [deleteProduct, { loading: deleting }] = useMutation(DELETE_PRODUCT, {
     onCompleted: () => {
       Alert.alert("Deleted", "Product removed from inventory.", [
@@ -684,13 +878,12 @@ export default function ProductDetailScreen() {
     onError: (err) => Alert.alert("Error", err.message),
   });
 
-  const isLoading = adding || removing;
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const isStockLoading = adding || removing;
   const product = productData?.product;
 
-  // Match inventory records against product variants using the compound
-  // (size, color) key — not size alone. Filtering by size only shows every
-  // inventory record sharing a size, including orphaned records from old
-  // color values (e.g. "default") that should no longer be visible.
+  // Compound (size, color) filter prevents orphaned "default" color records
+  // from appearing alongside migrated records after the color migration.
   const activeVariantKeys = new Set(
     (product?.variants ?? []).map(
       (v) => `${v.size.toUpperCase()}-${v.color.toLowerCase()}`,
@@ -703,6 +896,7 @@ export default function ProductDetailScreen() {
   );
   const lowCount = items.filter((i) => i.isLowStock).length;
 
+  // ── Stock handlers ────────────────────────────────────────────────────────
   const handleAdd = (item: InventoryItem) => {
     addStock({
       variables: {
@@ -730,16 +924,13 @@ export default function ProductDetailScreen() {
     }).catch((err) => Alert.alert("Error", err.message));
   };
 
+  // ── Edit handlers ─────────────────────────────────────────────────────────
   const openEdit = () => {
     if (!product) return;
     setEditName(product.name);
     setEditBrand(product.brand);
     setEditDescription(product.description);
     setEditPrice(String(product.price));
-    // In the single-color-per-product model (Option B), all variants share
-    // the same color value. Derive the editable color from the first variant.
-    // If the product somehow has no variants, fall back to empty so the user
-    // is forced to enter one rather than silently re-saving "default".
     setEditColor(product.variants[0]?.color ?? "");
     setEditCategoryGroup(product.categoryGroup);
     setEditSubcategory(product.subcategory);
@@ -753,11 +944,9 @@ export default function ProductDetailScreen() {
   };
 
   const toggleEditSize = (size: Size) => {
-    if (editSizes.includes(size)) {
-      setEditSizes(editSizes.filter((s) => s !== size));
-    } else {
-      setEditSizes([...editSizes, size]);
-    }
+    setEditSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size],
+    );
   };
 
   const pickEditImage = async () => {
@@ -781,9 +970,8 @@ export default function ProductDetailScreen() {
     }
   };
 
-  const removeEditImage = (index: number) => {
+  const removeEditImage = (index: number) =>
     setEditImages((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const handleUpdate = async () => {
     if (!validId) return;
@@ -813,21 +1001,14 @@ export default function ProductDetailScreen() {
       }
     }
 
-    // Map remote URLs through unchanged; replace local URIs by *position*
-    // in the original editImages list, not by indexOf. This avoids the bug
-    // where two duplicate local URIs collide on the same uploaded URL.
-    let nextLocalIndex = 0;
+    // Walk editImages in order; consume uploadedUrls positionally.
+    // Prevents the indexOf duplicate-URI bug where two identical local URIs
+    // would both map to uploadedUrls[0].
+    let nextLocal = 0;
     const finalImages = editImages.map((img) => {
       if (img.startsWith("http")) return img;
-      const url = uploadedUrls[nextLocalIndex];
-      nextLocalIndex++;
-      return url;
+      return uploadedUrls[nextLocal++];
     });
-
-    // Single-color-per-product model: every variant shares the same color.
-    // editColor is required (validated above) so this never silently writes
-    // an empty or fallback color.
-    const normalizedColor = editColor.trim();
 
     updateProduct({
       variables: {
@@ -841,7 +1022,7 @@ export default function ProductDetailScreen() {
           subcategory: editSubcategory.trim(),
           variants: editSizes.map((size) => ({
             size,
-            color: normalizedColor,
+            color: editColor.trim(),
           })),
           images: finalImages,
         },
@@ -849,6 +1030,7 @@ export default function ProductDetailScreen() {
     });
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = () => {
     Alert.alert(
       "Delete Product",
@@ -864,6 +1046,24 @@ export default function ProductDetailScreen() {
     );
   };
 
+  // ── Overflow menu (sticky header ⋯ + inline ⋯) ───────────────────────────
+  const handleMoreMenu = () => {
+    Alert.alert(product?.name ?? "Product", undefined, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete Product",
+        style: "destructive",
+        onPress: handleDelete,
+      },
+    ]);
+  };
+
+  // ── Add to Order shortcut ─────────────────────────────────────────────────
+  const handleAddToOrder = () => {
+    router.push("/orders");
+  };
+
+  // ── Loading screen ────────────────────────────────────────────────────────
   if (!validId || productLoading) {
     return (
       <View
@@ -880,30 +1080,52 @@ export default function ProductDetailScreen() {
   }
 
   const productImages = product?.images ?? [];
+  const backAction = () =>
+    router.canGoBack() ? router.back() : router.replace("/inventory");
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <StatusBar
         barStyle={scheme === "dark" ? "light-content" : "dark-content"}
       />
-      <ScrollView
+
+      {/* ── Sticky condensed header — fades in on scroll ─────────────── */}
+      {/* Fixes: status bar bleed, context lost on scroll                  */}
+      <StickyHeader
+        productName={product?.name ?? productName ?? "Product"}
+        opacity={stickyOpacity}
+        insetTop={insets.top}
+        onBack={backAction}
+        onMore={handleMoreMenu}
+        C={C}
+      />
+
+      <Animated.ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{
+          paddingBottom: 60,
+          paddingTop: insets.top,
+        }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
       >
-        {/* ── Header ──────────────────────────────────────────────── */}
+        {/* ── Page header ──────────────────────────────────────────────── */}
         <View
-          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
+          style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 4 }}
         >
+          {/* Back nav — always visible at top of scroll */}
           <TouchableOpacity
-            onPress={() =>
-              router.canGoBack() ? router.back() : router.replace("/inventory")
-            }
+            onPress={backAction}
             activeOpacity={0.6}
             style={{
               flexDirection: "row",
               alignItems: "center",
               alignSelf: "flex-start",
-              marginBottom: 32,
+              marginBottom: 24,
             }}
           >
             <Ionicons name="arrow-back" size={16} color={C.accent} />
@@ -919,96 +1141,198 @@ export default function ProductDetailScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Product name + brand */}
-          <View style={{ marginBottom: 16 }}>
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: "800",
-                color: C.textPrimary,
-                letterSpacing: -0.5,
-              }}
-              numberOfLines={2}
-            >
-              {product?.name ?? productName ?? "Product"}
-            </Text>
-            <Text
-              style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}
-            >
+          {/* Product name */}
+          <Text
+            numberOfLines={2}
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: C.textPrimary,
+              letterSpacing: -0.5,
+              marginBottom: 4,
+            }}
+          >
+            {product?.name ?? productName ?? "Product"}
+          </Text>
+
+          {/* Brand + status badge inline */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 13, color: C.textSecondary }}>
               {product?.brand}
             </Text>
-          </View>
-
-          {/* ── Image carousel ───────────────────────────────────── */}
-          <ImageCarousel images={productImages} C={C} />
-
-          {/* Action buttons */}
-          <View style={{ flexDirection: "row" }}>
-            <TouchableOpacity
-              onPress={openEdit}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: C.accentMuted,
-                borderRadius: 12,
-                paddingVertical: 12,
-                borderWidth: 1,
-                borderColor: C.accent + "40",
-                marginRight: 10,
-              }}
-            >
-              <Ionicons
-                name="pencil-outline"
-                size={16}
-                color={C.accent}
-                style={{ marginRight: 6 }}
-              />
-              <Text
-                style={{ fontSize: 14, fontWeight: "600", color: C.accent }}
-              >
-                Edit
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDelete}
-              disabled={deleting}
-              activeOpacity={0.8}
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: C.alertBg,
-                borderRadius: 12,
-                paddingVertical: 12,
-                borderWidth: 1,
-                borderColor: C.alert + "40",
-              }}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={16}
-                color={C.alert}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={{ fontSize: 14, fontWeight: "600", color: C.alert }}>
-                {deleting ? "Deleting…" : "Delete"}
-              </Text>
-            </TouchableOpacity>
+            {product?.status && <StatusBadge status={product.status} C={C} />}
           </View>
         </View>
 
-        <View style={{ paddingHorizontal: 20 }}>
-          {/* ── Product Info ─────────────────────────────────────── */}
-          <Section title="Product Info" C={C}>
-            <InfoRow
-              label="Price"
-              value={currencyFormatter.format(product?.price ?? 0)}
-              C={C}
+        {/* ── Image carousel ───────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 20, marginTop: 16, marginBottom: 4 }}>
+          <ImageCarousel images={productImages} C={C} />
+        </View>
+
+        {/* ── Price hero card ───────────────────────────────────────────── */}
+        {/* Fixes: price buried in flat info row — now first-class visual   */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+          <View
+            style={{
+              backgroundColor: C.surface,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: C.border,
+              paddingVertical: 16,
+              paddingHorizontal: 20,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: C.textSecondary,
+                }}
+              >
+                MXN
+              </Text>
+              <Text
+                style={{
+                  fontSize: 32,
+                  fontWeight: "800",
+                  color: C.textPrimary,
+                  letterSpacing: -1,
+                }}
+              >
+                ${priceFormatter.format(product?.price ?? 0)}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+              selling price
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Primary CTA row ───────────────────────────────────────────── */}
+        {/* Fixes: Delete had equal prominence to Edit                       */}
+        {/* Edit is now the sole primary action. Delete is demoted to bottom. */}
+        <View
+          style={{
+            flexDirection: "row",
+            paddingHorizontal: 20,
+            marginBottom: 8,
+            gap: 10,
+          }}
+        >
+          <TouchableOpacity
+            onPress={openEdit}
+            activeOpacity={0.8}
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: C.accent,
+              borderRadius: 14,
+              paddingVertical: 14,
+            }}
+          >
+            <Ionicons
+              name="pencil-outline"
+              size={16}
+              color={C.background}
+              style={{ marginRight: 7 }}
             />
+            <Text
+              style={{ fontSize: 15, fontWeight: "700", color: C.background }}
+            >
+              Edit Product
+            </Text>
+          </TouchableOpacity>
+
+          {/* ⋯ overflow — contains Delete to reduce mis-tap risk */}
+          <TouchableOpacity
+            onPress={handleMoreMenu}
+            activeOpacity={0.8}
+            style={{
+              width: 48,
+              borderRadius: 14,
+              backgroundColor: C.surface,
+              borderWidth: 1,
+              borderColor: C.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={20}
+              color={C.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Add to Order CTA ──────────────────────────────────────────── */}
+        {/* Fixes: no "Add to Order" action from the product detail screen   */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+          <TouchableOpacity
+            onPress={handleAddToOrder}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: C.successBg,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: C.success + "40",
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ fontSize: 14, fontWeight: "700", color: C.success }}
+              >
+                + Add to Order
+              </Text>
+              <Text
+                style={{ fontSize: 11, color: C.success + "99", marginTop: 1 }}
+              >
+                Use this product in a new or existing order
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={C.success + "99"}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Product info ──────────────────────────────────────────────── */}
+        {/* Fixes: commercial and metadata rows visually identical.           */}
+        {/* Core info (operational daily) separated from record info (rarely  */}
+        {/* needed). Status removed from here — shown as badge above.         */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              letterSpacing: 1.5,
+              color: C.textTertiary,
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            Product Info
+          </Text>
+          <View
+            style={{
+              backgroundColor: C.surface,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: C.border,
+              overflow: "hidden",
+            }}
+          >
             <InfoRow label="Gender" value={product?.gender ?? "—"} C={C} />
             <InfoRow
               label="Category"
@@ -1019,39 +1343,64 @@ export default function ProductDetailScreen() {
               label="Subcategory"
               value={product?.subcategory ?? "—"}
               C={C}
-            />
-            <InfoRow label="Status" value={product?.status ?? "—"} C={C} />
-            <InfoRow
-              label="Created"
-              value={product?.createdAt ? formatDate(product.createdAt) : "—"}
-              C={C}
-            />
-            <InfoRow
-              label="Updated"
-              value={product?.updatedAt ? formatDate(product.updatedAt) : "—"}
-              C={C}
               last
             />
-          </Section>
+          </View>
+        </View>
 
-          {/* ── Description ──────────────────────────────────────── */}
-          {product?.description && (
-            <Section title="Description" C={C}>
-              <View style={{ padding: 16 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: C.textSecondary,
-                    lineHeight: 20,
-                  }}
+        {/* ── Description ───────────────────────────────────────────────── */}
+        {/* Fixes: full description text pushed Stock below the fold.         */}
+        {/* 3-line clamp by default; "Show more" expands.                     */}
+        {product?.description && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                letterSpacing: 1.5,
+                color: C.textTertiary,
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              Description
+            </Text>
+            <View
+              style={{
+                backgroundColor: C.surface,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: C.border,
+                padding: 16,
+              }}
+            >
+              <Text
+                numberOfLines={descriptionExpanded ? undefined : 3}
+                style={{ fontSize: 13, color: C.textSecondary, lineHeight: 20 }}
+              >
+                {product.description}
+              </Text>
+              {product.description.length > 120 && (
+                <TouchableOpacity
+                  onPress={() => setDescriptionExpanded((v) => !v)}
+                  activeOpacity={0.7}
+                  style={{ marginTop: 8 }}
                 >
-                  {product.description}
-                </Text>
-              </View>
-            </Section>
-          )}
+                  <Text
+                    style={{ fontSize: 13, fontWeight: "600", color: C.accent }}
+                  >
+                    {descriptionExpanded ? "Show less" : "Show more"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
-          {/* ── Stock ────────────────────────────────────────────── */}
+        {/* ── Stock ─────────────────────────────────────────────────────── */}
+        {/* Fixes: stock steppers live with no save mechanism.                */}
+        {/* Default is read-only (progress bars). "Edit Stock" gates changes. */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <View
             style={{
               flexDirection: "row",
@@ -1060,33 +1409,56 @@ export default function ProductDetailScreen() {
               marginBottom: 10,
             }}
           >
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "700",
-                letterSpacing: 1.5,
-                color: C.textTertiary,
-                textTransform: "uppercase",
-              }}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
-              Stock
-            </Text>
-            {lowCount > 0 && (
-              <View
+              <Text
                 style={{
-                  backgroundColor: C.pendingBg,
-                  borderRadius: 6,
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1.5,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
                 }}
               >
-                <Text
-                  style={{ fontSize: 11, fontWeight: "700", color: C.pending }}
+                Stock
+              </Text>
+              {lowCount > 0 && (
+                <View
+                  style={{
+                    backgroundColor: C.pendingBg,
+                    borderRadius: 6,
+                    paddingHorizontal: 7,
+                    paddingVertical: 2,
+                  }}
                 >
-                  {lowCount} low stock
-                </Text>
-              </View>
-            )}
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: C.pending,
+                    }}
+                  >
+                    {lowCount} low
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setStockEditMode((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: stockEditMode ? C.success : C.accent,
+                }}
+              >
+                {stockEditMode ? "Done" : "Edit Stock"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {inventoryError ? (
@@ -1098,14 +1470,13 @@ export default function ProductDetailScreen() {
                 borderWidth: 1,
                 borderColor: C.alert + "40",
                 alignItems: "center",
-                marginBottom: 20,
               }}
             >
               <Text
                 style={{
                   fontSize: 13,
-                  color: C.alert,
                   fontWeight: "600",
+                  color: C.alert,
                   marginBottom: 4,
                 }}
               >
@@ -1130,7 +1501,6 @@ export default function ProductDetailScreen() {
                 borderWidth: 1,
                 borderColor: C.border,
                 alignItems: "center",
-                marginBottom: 20,
               }}
             >
               <ActivityIndicator size="small" color={C.accent} />
@@ -1144,11 +1514,10 @@ export default function ProductDetailScreen() {
                 borderWidth: 1,
                 borderColor: C.border,
                 alignItems: "center",
-                marginBottom: 20,
               }}
             >
               <Text style={{ fontSize: 13, color: C.textTertiary }}>
-                No sizes tracked yet — tap Edit to add sizes
+                No sizes tracked yet — tap Edit Product to add sizes
               </Text>
             </View>
           ) : (
@@ -1159,26 +1528,97 @@ export default function ProductDetailScreen() {
                 borderWidth: 1,
                 borderColor: C.border,
                 overflow: "hidden",
-                marginBottom: 20,
               }}
             >
-              {items.map((item, index) => (
-                <VariantRow
-                  key={`${item.size}-${item.color}`}
-                  item={item}
-                  onAdd={() => handleAdd(item)}
-                  onRemove={() => handleRemove(item)}
-                  isLoading={isLoading}
-                  isLast={index === items.length - 1}
-                  C={C}
-                />
-              ))}
+              {items.map((item, index) =>
+                stockEditMode ? (
+                  <EditableStockRow
+                    key={`${item.size}-${item.color}`}
+                    item={item}
+                    onAdd={() => handleAdd(item)}
+                    onRemove={() => handleRemove(item)}
+                    isLoading={isStockLoading}
+                    isLast={index === items.length - 1}
+                    C={C}
+                  />
+                ) : (
+                  <ReadOnlyStockRow
+                    key={`${item.size}-${item.color}`}
+                    item={item}
+                    isLast={index === items.length - 1}
+                    C={C}
+                  />
+                ),
+              )}
             </View>
           )}
         </View>
-      </ScrollView>
 
-      {/* ── Edit Modal ───────────────────────────────────────────── */}
+        {/* ── Record info ───────────────────────────────────────────────── */}
+        {/* Fixes: metadata rows visually identical to commercial rows.       */}
+        {/* Created/Updated are smaller, muted — reference-only data.        */}
+        {/* Fixes: "20 abr 2026" locale mismatch — now uses explicit en-US.  */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 28 }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              letterSpacing: 1.5,
+              color: C.textTertiary,
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            Record Info
+          </Text>
+          <View
+            style={{
+              backgroundColor: C.surface,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: C.border,
+              overflow: "hidden",
+            }}
+          >
+            <InfoRow
+              label="Created"
+              value={product?.createdAt ? formatDate(product.createdAt) : "—"}
+              muted
+              C={C}
+            />
+            <InfoRow
+              label="Last updated"
+              value={product?.updatedAt ? formatDate(product.updatedAt) : "—"}
+              muted
+              last
+              C={C}
+            />
+          </View>
+        </View>
+
+        {/* ── Delete — demoted to bottom text action ────────────────────── */}
+        {/* Fixes: Delete had equal visual prominence to Edit (critical risk  */}
+        {/* of accidental irreversible destructive action on small screen).   */}
+        <View
+          style={{
+            paddingHorizontal: 20,
+            paddingBottom: 40,
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleDelete}
+            disabled={deleting}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 14, color: C.alert, fontWeight: "500" }}>
+              {deleting ? "Deleting…" : "Delete product…"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.ScrollView>
+
+      {/* ── Edit modal ───────────────────────────────────────────────────── */}
       <Modal
         visible={editVisible}
         animationType="slide"
