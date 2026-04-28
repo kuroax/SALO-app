@@ -147,6 +147,40 @@ function formatDate(iso: string): string {
   });
 }
 
+// ─── Variant helpers ──────────────────────────────────────────────────────────
+// :: separator prevents collision between e.g. "XL" + "black-white" and
+// "XL-black" + "white" that a plain "-" join would produce.
+
+function normalizeSize(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function normalizeColor(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isSize(value: string): value is Size {
+  return (SIZES as readonly string[]).includes(value);
+}
+
+function variantKey(size: string, color: string): string {
+  return `${normalizeSize(size)}::${normalizeColor(color)}`;
+}
+
+// Deduplicates sizes from a variants array.
+// In the Option-B model (one product per color) all variants share the same
+// color, so duplicates shouldn't appear — but we guard against them
+// defensively in case of data inconsistency or future model changes.
+function uniqueSizesFromVariants(variants: Product["variants"]): Size[] {
+  const seen = new Set<Size>();
+  for (const v of variants ?? []) {
+    const s = normalizeSize(v.size);
+    if (isSize(s)) seen.add(s);
+  }
+  // Return in canonical SIZES order so chips render consistently
+  return SIZES.filter((s) => seen.has(s));
+}
+
 // ─── Sticky Header ────────────────────────────────────────────────────────────
 
 function StickyHeader({
@@ -837,11 +871,14 @@ export default function ProductDetailScreen() {
   const refetchProduct = [{ query: GET_PRODUCT, variables: { id: validId } }];
 
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: productData, loading: productLoading } =
-    useQuery<GetProductData>(GET_PRODUCT, {
-      variables: { id: validId },
-      skip: !validId,
-    });
+  const {
+    data: productData,
+    loading: productLoading,
+    error: productError,
+  } = useQuery<GetProductData>(GET_PRODUCT, {
+    variables: { id: validId },
+    skip: !validId,
+  });
 
   const {
     data: inventoryData,
@@ -883,16 +920,13 @@ export default function ProductDetailScreen() {
   const product = productData?.product;
 
   // Compound (size, color) filter prevents orphaned "default" color records
-  // from appearing alongside migrated records after the color migration.
+  // from appearing alongside migrated records. Uses variantKey with :: separator
+  // to prevent collision bugs that a plain "-" join can produce.
   const activeVariantKeys = new Set(
-    (product?.variants ?? []).map(
-      (v) => `${v.size.toUpperCase()}-${v.color.toLowerCase()}`,
-    ),
+    (product?.variants ?? []).map((v) => variantKey(v.size, v.color)),
   );
   const items = (inventoryData?.productInventory ?? []).filter((item) =>
-    activeVariantKeys.has(
-      `${item.size.toUpperCase()}-${item.color.toLowerCase()}`,
-    ),
+    activeVariantKeys.has(variantKey(item.size, item.color)),
   );
   const lowCount = items.filter((i) => i.isLowStock).length;
 
@@ -931,14 +965,18 @@ export default function ProductDetailScreen() {
     setEditBrand(product.brand);
     setEditDescription(product.description);
     setEditPrice(String(product.price));
-    setEditColor(product.variants[0]?.color ?? "");
+    // Defensive color read: find the first variant that has a real color value
+    // rather than relying on array position. Guards against future reordering
+    // from the backend and the pre-migration "default" sentinel value.
+    const productColor =
+      product.variants.find((v) => v.color && v.color !== "default")?.color ??
+      "";
+    setEditColor(productColor);
     setEditCategoryGroup(product.categoryGroup);
     setEditSubcategory(product.subcategory);
-    setEditSizes(
-      (product.variants ?? [])
-        .map((v) => v.size.toUpperCase())
-        .filter((s): s is Size => SIZES.includes(s as Size)),
-    );
+    // uniqueSizesFromVariants deduplicates sizes and returns them in canonical
+    // SIZES order, preventing duplicate chip renders caused by multi-color data.
+    setEditSizes(uniqueSizesFromVariants(product.variants ?? []));
     setEditImages(product.images ?? []);
     setEditVisible(true);
   };
@@ -982,9 +1020,26 @@ export default function ProductDetailScreen() {
         "Required",
         "Description must be at least 10 characters.",
       );
-    if (!editPrice.trim() || isNaN(parseFloat(editPrice)))
-      return Alert.alert("Invalid", "Enter a valid price.");
+
+    // Strict price validation — parseFloat("100abc") = 100 and
+    // parseFloat("1,200") = 1 are both wrong for MXN prices.
+    const rawPrice = editPrice.trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(rawPrice))
+      return Alert.alert(
+        "Invalid",
+        "Enter a valid price (numbers only, e.g. 1990 or 1990.00).",
+      );
+    const parsedPrice = Number(rawPrice);
+    if (parsedPrice <= 0)
+      return Alert.alert("Invalid", "Price must be greater than 0.");
+
     if (!editColor.trim()) return Alert.alert("Required", "Color is required.");
+
+    // Canonical order + deduplication: SIZES.filter preserves the enum order
+    // and prevents sending e.g. ["M", "S", "M"] if the user toggled rapidly.
+    const uniqueEditSizes = SIZES.filter((s) => editSizes.includes(s));
+    if (uniqueEditSizes.length === 0)
+      return Alert.alert("Required", "Select at least one size.");
 
     const newLocalUris = editImages.filter((img) => !img.startsWith("http"));
 
@@ -1010,6 +1065,10 @@ export default function ProductDetailScreen() {
       return uploadedUrls[nextLocal++];
     });
 
+    // normalizeColor trims and lowercases — matches the inventory pre-save hook
+    // and the Zod validation schema so storage is always consistent.
+    const normalizedColor = normalizeColor(editColor);
+
     updateProduct({
       variables: {
         id: validId,
@@ -1017,12 +1076,12 @@ export default function ProductDetailScreen() {
           name: editName.trim(),
           brand: editBrand.trim(),
           description: editDescription.trim(),
-          price: parseFloat(editPrice),
+          price: parsedPrice,
           categoryGroup: editCategoryGroup.trim(),
           subcategory: editSubcategory.trim(),
-          variants: editSizes.map((size) => ({
+          variants: uniqueEditSizes.map((size) => ({
             size,
-            color: editColor.trim(),
+            color: normalizedColor,
           })),
           images: finalImages,
         },
@@ -1059,12 +1118,57 @@ export default function ProductDetailScreen() {
   };
 
   // ── Add to Order shortcut ─────────────────────────────────────────────────
+  // Passes productId so the orders screen can pre-select this product.
+  // The orders screen needs to read this param to pre-fill — implement
+  // that wiring when the order creation flow is built.
   const handleAddToOrder = () => {
-    router.push("/orders");
+    router.push({
+      pathname: "/orders",
+      params: { productId: validId ?? undefined },
+    });
   };
 
-  // ── Loading screen ────────────────────────────────────────────────────────
-  if (!validId || productLoading) {
+  // ── Early returns — distinct states instead of one spinner ───────────────
+  if (!validId) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          padding: 32,
+        }}
+      >
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={C.alert}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "600",
+            color: C.textPrimary,
+            marginBottom: 6,
+          }}
+        >
+          Invalid product ID
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace("/inventory")}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 14, color: C.accent }}>
+            ← Back to Inventory
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (productLoading) {
     return (
       <View
         style={{
@@ -1075,6 +1179,99 @@ export default function ProductDetailScreen() {
         }}
       >
         <ActivityIndicator size="large" color={C.accent} />
+      </View>
+    );
+  }
+
+  if (productError) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          padding: 32,
+        }}
+      >
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={C.alert}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "600",
+            color: C.textPrimary,
+            marginBottom: 6,
+          }}
+        >
+          Couldn't load product
+        </Text>
+        <Text
+          style={{
+            fontSize: 13,
+            color: C.textSecondary,
+            textAlign: "center",
+            marginBottom: 16,
+          }}
+        >
+          {productError.message}
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace("/inventory")}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 14, color: C.accent }}>
+            ← Back to Inventory
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!productData?.product) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: C.background,
+          padding: 32,
+        }}
+      >
+        <Ionicons
+          name="cube-outline"
+          size={40}
+          color={C.textTertiary}
+          style={{ marginBottom: 12 }}
+        />
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "600",
+            color: C.textPrimary,
+            marginBottom: 6,
+          }}
+        >
+          Product not found
+        </Text>
+        <Text
+          style={{ fontSize: 13, color: C.textSecondary, marginBottom: 16 }}
+        >
+          It may have been deleted.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace("/inventory")}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 14, color: C.accent }}>
+            ← Back to Inventory
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -1270,47 +1467,7 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Add to Order CTA ──────────────────────────────────────────── */}
-        {/* Fixes: no "Add to Order" action from the product detail screen   */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-          <TouchableOpacity
-            onPress={handleAddToOrder}
-            activeOpacity={0.8}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: C.successBg,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: C.success + "40",
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ fontSize: 14, fontWeight: "700", color: C.success }}
-              >
-                + Add to Order
-              </Text>
-              <Text
-                style={{ fontSize: 11, color: C.success + "99", marginTop: 1 }}
-              >
-                Use this product in a new or existing order
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={C.success + "99"}
-            />
-          </TouchableOpacity>
-        </View>
-
         {/* ── Product info ──────────────────────────────────────────────── */}
-        {/* Fixes: commercial and metadata rows visually identical.           */}
-        {/* Core info (operational daily) separated from record info (rarely  */}
-        {/* needed). Status removed from here — shown as badge above.         */}
         <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <Text
             style={{
@@ -1333,7 +1490,19 @@ export default function ProductDetailScreen() {
               overflow: "hidden",
             }}
           >
-            <InfoRow label="Gender" value={product?.gender ?? "—"} C={C} />
+            <InfoRow label="Name" value={product?.name ?? "—"} C={C} />
+            <InfoRow label="Brand" value={product?.brand ?? "—"} C={C} />
+            <InfoRow
+              label="Color"
+              value={(() => {
+                const c =
+                  product?.variants.find(
+                    (v) => v.color && v.color !== "default",
+                  )?.color ?? "";
+                return c ? c.charAt(0).toUpperCase() + c.slice(1) : "—";
+              })()}
+              C={C}
+            />
             <InfoRow
               label="Category"
               value={product?.categoryGroup ?? "—"}
@@ -1533,7 +1702,10 @@ export default function ProductDetailScreen() {
               {items.map((item, index) =>
                 stockEditMode ? (
                   <EditableStockRow
-                    key={`${item.size}-${item.color}`}
+                    key={
+                      item.id ||
+                      `${item.productId}-${variantKey(item.size, item.color)}`
+                    }
                     item={item}
                     onAdd={() => handleAdd(item)}
                     onRemove={() => handleRemove(item)}
@@ -1543,7 +1715,10 @@ export default function ProductDetailScreen() {
                   />
                 ) : (
                   <ReadOnlyStockRow
-                    key={`${item.size}-${item.color}`}
+                    key={
+                      item.id ||
+                      `${item.productId}-${variantKey(item.size, item.color)}`
+                    }
                     item={item}
                     isLast={index === items.length - 1}
                     C={C}
