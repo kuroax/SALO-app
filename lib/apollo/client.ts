@@ -27,9 +27,18 @@ export const apolloClient = new ApolloClient({
       Product: {
         keyFields: ["id"],
       },
-      // Normalize InventoryItem by productId + size + color compound key.
+      // Normalize InventoryItem by id.
+      // Previously used a compound key ["productId", "size", "color"] which
+      // caused Apollo to throw when ANY query writing InventoryItem objects to
+      // the cache omitted one of the key fields — e.g. GET_LOW_STOCK only
+      // selects productId/size/color and no other fields, leaving partial
+      // entries that Apollo cannot denormalize on subsequent reads.
+      // Using "id" (the MongoDB ObjectId) is the correct stable unique key,
+      // consistent with Order, Customer, and Product above, and is safe
+      // because every query and mutation that touches InventoryItem already
+      // returns id in its selection set.
       InventoryItem: {
-        keyFields: ["productId", "size", "color"],
+        keyFields: ["id"],
       },
     },
   }),
