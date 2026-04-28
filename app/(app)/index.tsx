@@ -4,12 +4,13 @@ import { GET_LOW_STOCK } from "@/lib/graphql/queries/inventory.queries";
 import { LIST_ORDERS } from "@/lib/graphql/queries/order.queries";
 import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
-import { gql} from "@apollo/client";
+import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Revenue stats query ─────────────────────────────────────────────────────
 
@@ -52,7 +54,7 @@ type Order = {
 };
 
 type ListOrdersData = { orders: Order[] };
-type LowStockData = { lowStock: { productId: string }[] };
+type LowStockData = { lowStock: { id: string; productId: string }[] };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,15 +65,6 @@ function isToday(isoString: string): boolean {
     date.getFullYear() === today.getFullYear() &&
     date.getMonth() === today.getMonth() &&
     date.getDate() === today.getDate()
-  );
-}
-
-function isThisMonth(isoString: string): boolean {
-  const date = new Date(isoString);
-  const today = new Date();
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth()
   );
 }
 
@@ -493,6 +486,7 @@ export default function DashboardScreen() {
 
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -500,6 +494,7 @@ export default function DashboardScreen() {
   const {
     data: pendingData,
     loading: pendingLoading,
+    error: pendingError,
     refetch: refetchPending,
   } = useQuery<ListOrdersData>(LIST_ORDERS, {
     variables: { filter: { status: "pending", limit: 100, skip: 0 } },
@@ -516,6 +511,7 @@ export default function DashboardScreen() {
   const {
     data: lowStockData,
     loading: lowStockLoading,
+    error: lowStockError,
     refetch: refetchLowStock,
   } = useQuery<LowStockData>(GET_LOW_STOCK);
 
@@ -543,28 +539,45 @@ export default function DashboardScreen() {
 
   const recentOrders = recentData?.orders.slice(0, 5) ?? [];
 
+  // Fix: Promise.allSettled prevents one failed refetch from blocking the
+  // others. try/finally guarantees setRefreshing(false) always runs —
+  // previously a thrown refetch would leave the spinner stuck permanently.
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      refetchPending(),
-      refetchRecent(),
-      refetchLowStock(),
-      refetchCustomers(),
-      refetchRevenueStats(),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.allSettled([
+        refetchPending(),
+        refetchRecent(),
+        refetchLowStock(),
+        refetchCustomers(),
+        refetchRevenueStats(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
-    try {
-      setIsLoggingOut(true);
-      await logout();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    } finally {
-      setIsLoggingOut(false);
-    }
+    // Confirmation prevents accidental logout — the icon has no label and is
+    // easy to mis-tap. The owner would need to re-authenticate to get back in.
+    Alert.alert("Log out?", "You will need to sign in again.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoggingOut(true);
+            await logout();
+          } catch (error) {
+            console.error("Logout failed:", error);
+          } finally {
+            setIsLoggingOut(false);
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -588,7 +601,7 @@ export default function DashboardScreen() {
           style={{
             backgroundColor: C.background,
             paddingHorizontal: 20,
-            paddingTop: 64,
+            paddingTop: insets.top + 20,
             paddingBottom: 20,
             flexDirection: "row",
             alignItems: "flex-end",
@@ -637,6 +650,41 @@ export default function DashboardScreen() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* ── Error banners ─────────────────────────────────────────────── */}
+        {/* Shown when key queries fail so the owner knows numbers may be    */}
+        {/* stale rather than silently seeing 0s and thinking all is well.   */}
+        {(pendingError || lowStockError) && (
+          <View
+            style={{
+              marginHorizontal: 20,
+              marginBottom: 12,
+              backgroundColor: C.alertBg,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: C.alert + "40",
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <Ionicons
+              name="warning-outline"
+              size={16}
+              color={C.alert}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={{ fontSize: 12, color: C.alert, flex: 1 }}>
+              {pendingError && lowStockError
+                ? "Couldn't load pending orders or stock data."
+                : pendingError
+                  ? "Couldn't load pending orders."
+                  : "Couldn't load stock data."}
+              {" Pull down to retry."}
+            </Text>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 20 }}>
           {/* ── Overview ──────────────────────────────────────────────── */}
@@ -728,7 +776,7 @@ export default function DashboardScreen() {
             <QuickAction
               label="Add Customer"
               icon="person-add-outline"
-              onPress={() => router.push("/customers")}
+              onPress={() => router.push("/customers/add-customer")}
               C={C}
             />
           </View>
