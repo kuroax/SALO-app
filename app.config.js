@@ -16,7 +16,7 @@ module.exports = {
   expo: {
     name: IS_PROD ? "SALO" : "SALO (dev)",
     slug: "salo",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "saloapp",
@@ -31,7 +31,7 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: "com.salo.app",
-      buildNumber: "3",
+      buildNumber: "1",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSPhotoLibraryUsageDescription:
