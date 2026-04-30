@@ -36,7 +36,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_IMAGES = 5;
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
+const SIZES = ["XS", "S", "M", "L", "XL"] as const;
 type Size = (typeof SIZES)[number];
 
 const SCREEN_WIDTH = Dimensions.get("window").width;

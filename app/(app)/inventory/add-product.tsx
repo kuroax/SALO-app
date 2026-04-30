@@ -64,7 +64,7 @@ const CREATE_PRODUCT = gql`
 
 // ─── Form types ───────────────────────────────────────────────────────────────
 
-const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
+const SIZES = ["XS", "S", "M", "L", "XL"] as const;
 type Size = (typeof SIZES)[number];
 
 const GENDERS = [
