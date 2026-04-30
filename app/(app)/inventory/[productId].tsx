@@ -93,6 +93,7 @@ const GET_PRODUCT = gql`
         size
         color
       }
+      searchKeywords
       createdAt
       updatedAt
     }
@@ -113,6 +114,7 @@ type Product = {
   images: string[];
   status: string;
   variants: { size: string; color: string }[];
+  searchKeywords: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -843,6 +845,8 @@ export default function ProductDetailScreen() {
   const [editSubcategory, setEditSubcategory] = useState("");
   const [editSizes, setEditSizes] = useState<Size[]>([]);
   const [editImages, setEditImages] = useState<string[]>([]);
+  const [editKeywords, setEditKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
   const [uploading, setUploading] = useState(false);
 
   // ── UX state ──────────────────────────────────────────────────────────────
@@ -978,6 +982,10 @@ export default function ProductDetailScreen() {
     // SIZES order, preventing duplicate chip renders caused by multi-color data.
     setEditSizes(uniqueSizesFromVariants(product.variants ?? []));
     setEditImages(product.images ?? []);
+    // Load only manual keywords — auto-keywords (subcategory, categoryGroup)
+    // are re-applied by the server on every save.
+    setEditKeywords(product.searchKeywords ?? []);
+    setKeywordInput("");
     setEditVisible(true);
   };
 
@@ -1084,6 +1092,9 @@ export default function ProductDetailScreen() {
             color: normalizedColor,
           })),
           images: finalImages,
+          // Send current keyword list — server merges with auto-keywords
+          // (subcategory, categoryGroup) and deduplicates before saving.
+          searchKeywords: editKeywords,
         },
       },
     });
@@ -1901,6 +1912,126 @@ export default function ProductDetailScreen() {
               onChangeText={setEditSubcategory}
               C={C}
             />
+
+            {/* ── Search Keywords ──────────────────────────────────────── */}
+            {/* Optional aliases Luis uses to match this product when customers  */}
+            {/* use colloquial terms. Auto-keywords (subcategory, categoryGroup)  */}
+            {/* are always applied by the server — only add extras here.         */}
+            <View style={{ marginBottom: 14 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
+              >
+                Search Keywords
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <TextInput
+                  value={keywordInput}
+                  onChangeText={setKeywordInput}
+                  placeholder="e.g. sweatshirt"
+                  placeholderTextColor={C.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onSubmitEditing={() => {
+                    const kw = keywordInput.trim().toLowerCase();
+                    if (kw && !editKeywords.includes(kw)) {
+                      setEditKeywords((prev) => [...prev, kw]);
+                    }
+                    setKeywordInput("");
+                  }}
+                  style={{
+                    flex: 1,
+                    backgroundColor: C.background,
+                    borderWidth: 1,
+                    borderColor: C.border,
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    fontSize: 14,
+                    color: C.textPrimary,
+                    marginRight: 8,
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    const kw = keywordInput.trim().toLowerCase();
+                    if (kw && !editKeywords.includes(kw)) {
+                      setEditKeywords((prev) => [...prev, kw]);
+                    }
+                    setKeywordInput("");
+                  }}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: C.accent,
+                    borderRadius: 10,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: C.background,
+                    }}
+                  >
+                    Add
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {editKeywords.length > 0 && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {editKeywords.map((kw) => (
+                    <TouchableOpacity
+                      key={kw}
+                      onPress={() =>
+                        setEditKeywords((prev) => prev.filter((k) => k !== kw))
+                      }
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: C.accentMuted,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        marginRight: 6,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: C.accent,
+                          marginRight: 4,
+                        }}
+                      >
+                        {kw}
+                      </Text>
+                      <Ionicons name="close" size={12} color={C.accent} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <Text
+                style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}
+              >
+                Auto-keywords from subcategory and category are always applied
+                by the server.
+              </Text>
+            </View>
 
             <View style={{ marginBottom: 14 }}>
               <Text

@@ -64,7 +64,7 @@ const CREATE_PRODUCT = gql`
 
 // ─── Form types ───────────────────────────────────────────────────────────────
 
-const SIZES = ["XS", "S", "M", "L", "XL"] as const;
+const SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 type Size = (typeof SIZES)[number];
 
 const GENDERS = [
@@ -679,6 +679,8 @@ export default function AddProductScreen() {
   const [subcategory, setSubcategory] = useState("");
   const [sizeStocks, setSizeStocks] = useState<SizeStock[]>([]);
   const [imageUris, setImageUris] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const [touched, setTouched] = useState<
@@ -840,6 +842,7 @@ export default function AddProductScreen() {
             })),
             images,
             status: "active",
+            searchKeywords: keywords,
           },
         },
       });
@@ -1105,7 +1108,146 @@ export default function AddProductScreen() {
               C={C}
             />
 
-            {/* ── Sizes & Stock ───────────────────────────────────────── */}
+            {/* ── Search Keywords ─────────────────────────────────────── */}
+            {/* Optional aliases for Luis to match this product when customers  */}
+            {/* use colloquial terms. Auto-keywords from subcategory and         */}
+            {/* categoryGroup are always applied by the server on save.          */}
+            <View style={{ marginBottom: 16 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1,
+                  color: C.textTertiary,
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Search Keywords{" "}
+                <Text
+                  style={{
+                    color: C.textTertiary,
+                    fontWeight: "400",
+                    letterSpacing: 0,
+                  }}
+                >
+                  (optional)
+                </Text>
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: C.surface,
+                    borderWidth: 1,
+                    borderColor: C.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 13,
+                    marginRight: 8,
+                  }}
+                >
+                  <TextInput
+                    value={keywordInput}
+                    onChangeText={setKeywordInput}
+                    placeholder="e.g. sweatshirt"
+                    placeholderTextColor={C.textTertiary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onSubmitEditing={() => {
+                      const kw = keywordInput.trim().toLowerCase();
+                      if (kw && !keywords.includes(kw)) {
+                        setKeywords((prev) => [...prev, kw]);
+                      }
+                      setKeywordInput("");
+                    }}
+                    style={{
+                      flex: 1,
+                      fontSize: 15,
+                      color: C.textPrimary,
+                      padding: 0,
+                    }}
+                  />
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    const kw = keywordInput.trim().toLowerCase();
+                    if (kw && !keywords.includes(kw)) {
+                      setKeywords((prev) => [...prev, kw]);
+                    }
+                    setKeywordInput("");
+                  }}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: C.accent,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 13,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "600",
+                      color: C.background,
+                    }}
+                  >
+                    Add
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {keywords.length > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    marginBottom: 4,
+                  }}
+                >
+                  {keywords.map((kw) => (
+                    <TouchableOpacity
+                      key={kw}
+                      onPress={() =>
+                        setKeywords((prev) => prev.filter((k) => k !== kw))
+                      }
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: C.accentMuted,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        marginRight: 6,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: C.accent,
+                          marginRight: 4,
+                        }}
+                      >
+                        {kw}
+                      </Text>
+                      <Ionicons name="close" size={12} color={C.accent} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <Text style={{ fontSize: 11, color: C.textTertiary }}>
+                Subcategory and category group are auto-applied by the server.
+              </Text>
+            </View>
             <View style={{ marginBottom: 16 }}>
               <View
                 style={{

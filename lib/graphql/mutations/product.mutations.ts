@@ -17,6 +17,7 @@ export const UPDATE_PRODUCT = gql`
         size
         color
       }
+      searchKeywords
     }
   }
 `;
