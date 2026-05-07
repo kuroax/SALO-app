@@ -277,7 +277,6 @@ export default function MoreScreen() {
   const scheme = useScheme();
 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { data: teamData, refetch: refetchTeam } = useQuery<{
@@ -447,22 +446,63 @@ export default function MoreScreen() {
             </View>
           </Section>
 
-          {/* Notifications */}
+          {/* Notifications — push notifications are not yet wired up; the row is */}
+          {/* shown disabled with a "Próximamente" subtext so the owner is not    */}
+          {/* misled into thinking the toggle does anything.                       */}
           <Section title="Notifications" C={C}>
-            <Row
-              icon="notifications-outline"
-              label="Push Notifications"
-              C={C}
-              last
-              right={
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={setNotificationsEnabled}
-                  trackColor={{ false: C.border, true: C.accent }}
-                  thumbColor={C.surface}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                opacity: 0.55,
+              }}
+            >
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 9,
+                  backgroundColor: C.accentMuted,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={17}
+                  color={C.accent}
                 />
-              }
-            />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "500",
+                    color: C.textPrimary,
+                  }}
+                >
+                  Push Notifications
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: C.textTertiary,
+                    marginTop: 2,
+                  }}
+                >
+                  Próximamente
+                </Text>
+              </View>
+              <Switch
+                value={false}
+                disabled
+                trackColor={{ false: C.border, true: C.accent }}
+                thumbColor={C.surface}
+              />
+            </View>
           </Section>
 
           {/* Team */}

@@ -1,4 +1,5 @@
 import type { ThemeColors } from "@/constants/Colors";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import {
   ADD_STOCK,
   REMOVE_STOCK,
@@ -49,30 +50,6 @@ const STOCK_BAR_REF = 20;
 // Scroll threshold at which the sticky header fully appears
 const STICKY_FADE_START = 160;
 const STICKY_FADE_END = 220;
-
-// ─── Cloudinary ───────────────────────────────────────────────────────────────
-
-const CLOUD_NAME = "dt4j7wevk";
-const UPLOAD_PRESET = "salo_products";
-
-async function uploadToCloudinary(uri: string): Promise<string> {
-  const filename = uri.split("/").pop() ?? "image.jpg";
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : "image/jpeg";
-  const formData = new FormData();
-  formData.append("file", { uri, name: filename, type } as never);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-    { method: "POST", body: formData },
-  );
-  if (!res.ok) throw new Error("Image upload failed");
-  const data = await res.json();
-  if (!data.secure_url || typeof data.secure_url !== "string") {
-    throw new Error("Image upload failed: invalid response from server");
-  }
-  return data.secure_url;
-}
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
 

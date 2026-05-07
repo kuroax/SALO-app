@@ -17,7 +17,27 @@ if (!apiUrl) {
   );
 }
 
+const cloudinaryCloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+
+if (!cloudinaryCloudName) {
+  throw new Error(
+    "[Config] EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME is not set.\n" +
+    "Create a .env.development file from .env.example and restart Expo.",
+  );
+}
+
+const cloudinaryUploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+if (!cloudinaryUploadPreset) {
+  throw new Error(
+    "[Config] EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET is not set.\n" +
+    "Create a .env.development file from .env.example and restart Expo.",
+  );
+}
+
 export const Config = {
   API_URL: apiUrl,
   IS_DEV: process.env.EXPO_PUBLIC_APP_ENV !== "production",
+  CLOUDINARY_CLOUD_NAME: cloudinaryCloudName,
+  CLOUDINARY_UPLOAD_PRESET: cloudinaryUploadPreset,
 } as const;

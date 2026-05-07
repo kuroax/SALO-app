@@ -12,6 +12,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
+  const isThemeHydrated = useThemeStore((state) => state.isHydrated);
 
   const segments = useSegments();
   const router = useRouter();
@@ -25,7 +26,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Redirect based on auth state — only runs after hydration is complete.
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !isThemeHydrated) return;
 
     const inAuthGroup = segments[0] === "(auth)";
 
@@ -34,11 +35,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (token && inAuthGroup) {
       router.replace("/(app)");
     }
-  }, [token, isHydrated, segments, router]);
+  }, [token, isHydrated, isThemeHydrated, segments, router]);
 
-  // Block render until SecureStore has been read.
-  // Prevents flash of wrong screen on cold boot.
-  if (!isHydrated) return null;
+  // Block render until SecureStore has been read for both auth and theme.
+  // Prevents flash of wrong screen / default theme on cold boot.
+  if (!isHydrated || !isThemeHydrated) return null;
 
   // Render-time gate: prevent (app) children from mounting and firing
   // unauthenticated queries between token becoming null and the redirect

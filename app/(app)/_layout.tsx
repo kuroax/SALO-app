@@ -1,6 +1,6 @@
 import { useColors } from "@/lib/hooks/useColors";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, usePathname, useRouter } from "expo-router";
+import { type Href, Tabs, usePathname, useRouter } from "expo-router";
 import { type ComponentProps } from "react";
 import {
   Text,
@@ -20,42 +20,49 @@ const TAB_BAR_HEIGHT = 64;
 
 type TabDef = {
   name: "index" | "orders" | "inventory" | "customers" | "more";
+  href: Href;
   label: string;
   icon: IoniconsName;
   iconActive: IoniconsName;
 };
 
 const TABS: readonly TabDef[] = [
-  { name: "index", label: "Home", icon: "grid-outline", iconActive: "grid" },
+  {
+    name: "index",
+    href: "/",
+    label: "Home",
+    icon: "grid-outline",
+    iconActive: "grid",
+  },
   {
     name: "orders",
+    href: "/orders",
     label: "Orders",
     icon: "receipt-outline",
     iconActive: "receipt",
   },
   {
     name: "inventory",
+    href: "/inventory",
     label: "Inventory",
     icon: "cube-outline",
     iconActive: "cube",
   },
   {
     name: "customers",
+    href: "/customers",
     label: "Customers",
     icon: "people-outline",
     iconActive: "people",
   },
   {
     name: "more",
+    href: "/more",
     label: "More",
     icon: "ellipsis-horizontal-circle-outline",
     iconActive: "ellipsis-horizontal-circle",
   },
 ];
-
-function tabHref(name: TabDef["name"]): string {
-  return name === "index" ? "/" : `/${name}`;
-}
 
 function isActive(name: TabDef["name"], pathname: string): boolean {
   if (name === "index") return pathname === "/";
@@ -75,7 +82,7 @@ function makeTabButton(tab: TabDef, tabWidth: number) {
 
     return (
       <TouchableOpacity
-        onPress={() => router.navigate(tabHref(tab.name) as never)}
+        onPress={() => router.navigate(tab.href)}
         activeOpacity={0.75}
         style={{
           width: tabWidth,
