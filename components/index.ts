@@ -1,4 +1,5 @@
 export { EditField } from "./EditField";
+export { ErrorBoundary } from "./ErrorBoundary";
 export { InfoRow } from "./InfoRow";
 export { Section } from "./Section";
 export {

@@ -776,7 +776,8 @@ export default function DashboardScreen() {
             <QuickAction
               label="Add Customer"
               icon="person-add-outline"
-              onPress={() => router.push("/customers/add-customer")}
+              // TODO: open AddCustomerModal directly once query-param support is added
+              onPress={() => router.push("/customers")}
               C={C}
             />
           </View>

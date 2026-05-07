@@ -396,7 +396,7 @@ export default function OrderDetailScreen() {
     ]),
   );
 
-  const refetchOrder = [{ query: GET_ORDER, variables: { orderId } }];
+  const refetchOrder = ["GetOrder"];
 
   const [updateStatus, { loading: updatingStatus }] = useMutation(
     UPDATE_ORDER_STATUS,

@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "@/components";
 import { apolloClient } from "@/lib/apollo/client";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useThemeStore } from "@/lib/store/theme.store";
@@ -39,26 +40,35 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Prevents flash of wrong screen on cold boot.
   if (!isHydrated) return null;
 
+  // Render-time gate: prevent (app) children from mounting and firing
+  // unauthenticated queries between token becoming null and the redirect
+  // effect firing. Mirror the same group detection used by the effect.
+  const inAuthGroup = segments[0] === "(auth)";
+  if (!token && !inAuthGroup) return null;
+  if (token && inAuthGroup) return null;
+
   return <>{children}</>;
 }
 
 export default function RootLayout() {
   return (
-    <ApolloProvider client={apolloClient}>
-      <AuthGuard>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(app)" />
-          <Stack.Screen
-            name="revenue"
-            options={{
-              presentation: "modal",
-              headerShown: false,
-            }}
-          />
-        </Stack>
-      </AuthGuard>
-    </ApolloProvider>
+    <ErrorBoundary>
+      <ApolloProvider client={apolloClient}>
+        <AuthGuard>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+            <Stack.Screen
+              name="revenue"
+              options={{
+                presentation: "modal",
+                headerShown: false,
+              }}
+            />
+          </Stack>
+        </AuthGuard>
+      </ApolloProvider>
+    </ErrorBoundary>
   );
 }

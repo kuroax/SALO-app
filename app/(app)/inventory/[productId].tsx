@@ -869,10 +869,8 @@ export default function ProductDetailScreen() {
   const validId =
     typeof productId === "string" && productId.length > 0 ? productId : null;
 
-  const refetchInventory = [
-    { query: GET_PRODUCT_INVENTORY, variables: { productId: validId } },
-  ];
-  const refetchProduct = [{ query: GET_PRODUCT, variables: { id: validId } }];
+  const refetchInventory = ["GetProductInventory"];
+  const refetchProduct = ["GetProduct"];
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const {

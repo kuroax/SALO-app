@@ -1,3 +1,4 @@
+import { apolloClient } from "@/lib/apollo/client";
 import { Config } from "@/constants/Config";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
@@ -140,6 +141,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Storage deletion failed — proceed with state cleanup anyway.
     } finally {
       set({ token: null, user: null, error: null });
+      await apolloClient.clearStore();
     }
   },
 

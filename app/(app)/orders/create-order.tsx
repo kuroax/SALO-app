@@ -301,9 +301,7 @@ export default function CreateOrderScreen() {
   const [createOrder, { loading: creating }] = useMutation<{
     createOrder: { orderNumber: string };
   }>(CREATE_ORDER, {
-    refetchQueries: [
-      { query: LIST_ORDERS, variables: { filter: { limit: 20, skip: 0 } } },
-    ],
+    refetchQueries: ["ListOrders"],
     onCompleted: (data) => {
       const orderNumber = data?.createOrder?.orderNumber ?? "Order";
       Alert.alert("Order Created", `${orderNumber} was created.`, [

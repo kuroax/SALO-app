@@ -445,7 +445,7 @@ export default function CustomerDetailScreen() {
   });
 
   const [updateCustomer, { loading: updating }] = useMutation(UPDATE_CUSTOMER, {
-    refetchQueries: [{ query: GET_CUSTOMER, variables: { id: customerId } }],
+    refetchQueries: ["GetCustomer"],
     onCompleted: () => {
       setEditVisible(false);
       Alert.alert("Updated", "Customer updated.");
@@ -456,12 +456,7 @@ export default function CustomerDetailScreen() {
   const [deactivateCustomer, { loading: deactivating }] = useMutation(
     DEACTIVATE_CUSTOMER,
     {
-      refetchQueries: [
-        {
-          query: LIST_CUSTOMERS,
-          variables: { input: { limit: LIST_LIMIT, isActive: true } },
-        },
-      ],
+      refetchQueries: ["ListCustomers"],
       onCompleted: () => {
         Alert.alert("Deleted", "Customer has been removed.", [
           { text: "OK", onPress: () => router.replace("/customers") },
