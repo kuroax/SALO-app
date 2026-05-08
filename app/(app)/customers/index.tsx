@@ -5,7 +5,7 @@ import { useColors, useScheme } from "@/lib/hooks/useColors";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,12 +15,12 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,14 +119,14 @@ function getChannelColor(channel: ContactChannel, C: ThemeColors): string {
   }
 }
 
-function CustomerRow({
+const CustomerRow = memo(function CustomerRow({
   customer,
   onPress,
   isLast,
   C,
 }: {
   customer: Customer;
-  onPress: () => void;
+  onPress: (id: string) => void;
   isLast: boolean;
   C: ThemeColors;
 }) {
@@ -138,7 +138,7 @@ function CustomerRow({
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => onPress(customer.id)}
       activeOpacity={0.7}
       style={{
         flexDirection: "row",
@@ -207,7 +207,7 @@ function CustomerRow({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
@@ -643,6 +643,7 @@ export default function CustomersScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -703,6 +704,16 @@ export default function CustomersScreen() {
     setRefreshing(false);
   };
 
+  // Stable handler so memoized CustomerRow doesn't re-render when listData
+  // shifts. router is stable, so the callback only changes when expo-router
+  // remounts — effectively never during a screen lifetime.
+  const handleRowPress = useCallback(
+    (id: string) => {
+      router.push({ pathname: "/customers/[id]", params: { id } });
+    },
+    [router],
+  );
+
   if (loading && !data) {
     return (
       <View
@@ -756,13 +767,14 @@ export default function CustomersScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
-          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 16 }}
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: insets.top + 16,
+            paddingBottom: 16,
+          }}
         >
           <Text
             style={{
@@ -860,12 +872,7 @@ export default function CustomersScreen() {
             return (
               <CustomerRow
                 customer={item.customer}
-                onPress={() =>
-                  router.push({
-                    pathname: "/customers/[id]",
-                    params: { id: item.customer.id },
-                  })
-                }
+                onPress={handleRowPress}
                 isLast={item.isLast}
                 C={C}
               />

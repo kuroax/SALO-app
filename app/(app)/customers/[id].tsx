@@ -18,12 +18,12 @@ import {
   Alert,
   Modal,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -419,6 +419,7 @@ export default function CustomerDetailScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const customerId = typeof id === "string" && id.length > 0 ? id : null;
 
@@ -632,16 +633,17 @@ export default function CustomerDetailScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
-          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: insets.top + 16,
+            paddingBottom: 20,
+          }}
         >
           <TouchableOpacity
             onPress={() =>

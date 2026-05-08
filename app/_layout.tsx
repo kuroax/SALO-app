@@ -1,11 +1,12 @@
 import { ErrorBoundary } from "@/components";
 import { apolloClient } from "@/lib/apollo/client";
+import { useScheme } from "@/lib/hooks/useColors";
 import { useAuthStore } from "@/lib/store/auth.store";
 import { useThemeStore } from "@/lib/store/theme.store";
 import { ApolloProvider } from "@apollo/client/react";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { StatusBar } from "react-native";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((state) => state.token);
@@ -52,11 +53,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  const scheme = useScheme();
   return (
     <ErrorBoundary>
       <ApolloProvider client={apolloClient}>
         <AuthGuard>
-          <StatusBar style="auto" />
+          <StatusBar
+            barStyle={scheme === "dark" ? "light-content" : "dark-content"}
+          />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(app)" />

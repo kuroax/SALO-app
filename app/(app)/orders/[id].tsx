@@ -17,11 +17,11 @@ import {
   Alert,
   Image,
   ScrollView,
-  StatusBar,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Customer query ───────────────────────────────────────────────────────────
 
@@ -373,6 +373,7 @@ export default function OrderDetailScreen() {
 
   const scheme = useScheme();
   const C = useColors();
+  const insets = useSafeAreaInsets();
 
   const orderId = typeof id === "string" && id.length > 0 ? id : null;
 
@@ -637,9 +638,6 @@ export default function OrderDetailScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
         contentContainerStyle={{ paddingBottom: 120 }}
@@ -648,7 +646,7 @@ export default function OrderDetailScreen() {
         <View
           style={{
             paddingHorizontal: 20,
-            paddingTop: 64,
+            paddingTop: insets.top + 16,
             paddingBottom: 20,
           }}
         >

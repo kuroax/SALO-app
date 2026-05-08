@@ -13,7 +13,6 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
-  StatusBar,
   Text,
   TouchableOpacity,
   View,
@@ -582,9 +581,6 @@ export default function DashboardScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
         contentContainerStyle={{ paddingBottom: 120 }}

@@ -17,12 +17,12 @@ import {
   Modal,
   Platform,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Queries / Mutations ──────────────────────────────────────────────────────
 
@@ -268,6 +268,7 @@ export default function CreateOrderScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
@@ -464,9 +465,6 @@ export default function CreateOrderScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: C.background }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -474,7 +472,11 @@ export default function CreateOrderScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
           {/* ── Header ────────────────────────────────────────────────── */}
           <View
-            style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
+            style={{
+              paddingHorizontal: 20,
+              paddingTop: insets.top + 16,
+              paddingBottom: 20,
+            }}
           >
             <TouchableOpacity
               onPress={() => router.back()}

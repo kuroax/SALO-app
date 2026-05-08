@@ -10,12 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
 
@@ -119,6 +119,7 @@ export default function AddMemberScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -187,9 +188,6 @@ export default function AddMemberScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: C.background }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -197,7 +195,11 @@ export default function AddMemberScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
           {/* ── Header ──────────────────────────────────────────────── */}
           <View
-            style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
+            style={{
+              paddingHorizontal: 20,
+              paddingTop: insets.top + 16,
+              paddingBottom: 20,
+            }}
           >
             <TouchableOpacity
               onPress={() => router.back()}

@@ -1,3 +1,6 @@
+// Dead code — no screen currently imports this component.
+// Candidate for removal once orders/index.tsx adopts it.
+
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { useColors } from "@/lib/hooks/useColors";

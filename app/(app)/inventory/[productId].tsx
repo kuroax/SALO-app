@@ -26,7 +26,6 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
@@ -1269,10 +1268,6 @@ export default function ProductDetailScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
-
       {/* ── Sticky condensed header — fades in on scroll ─────────────── */}
       {/* Fixes: status bar bleed, context lost on scroll                  */}
       <StickyHeader

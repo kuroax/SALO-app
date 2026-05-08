@@ -4,19 +4,19 @@ import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   RefreshControl,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -141,7 +141,11 @@ function FilterChips({
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
 
-function ProductCard({
+// Image (64) + card padding (12+12) + marginBottom (10) = 98. Card content
+// is shorter than the image, so the row aligns to the image height.
+const PRODUCT_CARD_HEIGHT = 98;
+
+const ProductCard = memo(function ProductCard({
   product,
   hasLowStock,
   onPress,
@@ -149,7 +153,7 @@ function ProductCard({
 }: {
   product: Product;
   hasLowStock: boolean;
-  onPress: () => void;
+  onPress: (productId: string, productName: string) => void;
   C: ThemeColors;
 }) {
   const variantCount = product.variants.length;
@@ -157,7 +161,7 @@ function ProductCard({
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => onPress(product.id, product.name)}
       activeOpacity={0.8}
       style={{
         backgroundColor: C.surface,
@@ -252,7 +256,7 @@ function ProductCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
@@ -310,6 +314,7 @@ export default function InventoryScreen() {
   const router = useRouter();
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -412,6 +417,18 @@ export default function InventoryScreen() {
     setRefreshing(false);
   };
 
+  // Stable handler so memoized ProductCard rows don't re-render every time
+  // the parent re-evaluates filters or low-stock data.
+  const handleProductPress = useCallback(
+    (productId: string, productName: string) => {
+      router.push({
+        pathname: "/inventory/[productId]",
+        params: { productId, productName },
+      });
+    },
+    [router],
+  );
+
   if (productsLoading && !productsData) {
     return (
       <View
@@ -465,15 +482,12 @@ export default function InventoryScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View
           style={{
             backgroundColor: C.background,
-            paddingTop: 64,
+            paddingTop: insets.top + 16,
             paddingBottom: 12,
           }}
         >
@@ -608,6 +622,11 @@ export default function InventoryScreen() {
         <FlatList
           data={filteredProducts}
           keyExtractor={(item) => item.id}
+          getItemLayout={(_data, index) => ({
+            length: PRODUCT_CARD_HEIGHT,
+            offset: PRODUCT_CARD_HEIGHT * index,
+            index,
+          })}
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingTop: 12,
@@ -626,12 +645,7 @@ export default function InventoryScreen() {
             <ProductCard
               product={item}
               hasLowStock={lowStockProductIds.has(item.id)}
-              onPress={() =>
-                router.push({
-                  pathname: "/inventory/[productId]",
-                  params: { productId: item.id, productName: item.name },
-                })
-              }
+              onPress={handleProductPress}
               C={C}
             />
           )}

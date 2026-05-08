@@ -6,7 +6,6 @@ import { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
   Text,
   TextInput,
   View,
@@ -47,7 +46,6 @@ export default function LoginScreen() {
 
   return (
     <>
-      <StatusBar barStyle={scheme === "dark" ? "light-content" : "dark-content"} />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: C.background }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

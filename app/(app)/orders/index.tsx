@@ -5,19 +5,19 @@ import { useColors } from "@/lib/hooks/useColors";
 import { useQuery } from "@apollo/client/react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useScheme } from "@/lib/hooks/useColors";
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
   ScrollView,
-  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +101,7 @@ const FILTER_VALUES: (OrderStatus | "all")[] = [
   "all",
   "pending",
   "confirmed",
+  "processing",
   "shipped",
   "delivered",
 ];
@@ -158,7 +159,12 @@ function FilterChip({
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-function OrderCard({
+// Total card height: padding 16+16 + content (~95) + marginBottom 10 = ~137.
+// Used by FlatList getItemLayout for scroll perf — order cards have fixed
+// structure, so the height is constant per row.
+const ORDER_CARD_HEIGHT = 137;
+
+const OrderCard = memo(function OrderCard({
   order,
   customerName,
   C,
@@ -280,7 +286,7 @@ function OrderCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
@@ -378,6 +384,7 @@ export default function OrdersScreen() {
   const scheme = useScheme();
   const C = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<OrderStatus | "all">("all");
@@ -443,16 +450,13 @@ export default function OrdersScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* ── Header ────────────────────────────────────────────────────── */}
         <View
           style={{
             backgroundColor: C.background,
             paddingHorizontal: 20,
-            paddingTop: 64,
+            paddingTop: insets.top + 16,
             paddingBottom: 12,
           }}
         >
@@ -557,6 +561,11 @@ export default function OrdersScreen() {
           <FlatList
             data={filteredOrders}
             keyExtractor={(item) => item.id}
+            getItemLayout={(_data, index) => ({
+              length: ORDER_CARD_HEIGHT,
+              offset: ORDER_CARD_HEIGHT * index,
+              index,
+            })}
             contentContainerStyle={{
               paddingHorizontal: 20,
               paddingTop: 4,

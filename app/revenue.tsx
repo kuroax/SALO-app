@@ -7,7 +7,6 @@ import { useRouter } from "expo-router";
 import {
     ActivityIndicator,
     ScrollView,
-    StatusBar,
     Text,
     TouchableOpacity,
     View,
@@ -450,9 +449,6 @@ export default function RevenueScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* ── Header ────────────────────────────────────────────────── */}
         <View

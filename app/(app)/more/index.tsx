@@ -10,12 +10,12 @@ import { useState } from "react";
 import {
   Alert,
   ScrollView,
-  StatusBar,
   Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
 
@@ -275,6 +275,7 @@ export default function MoreScreen() {
 
   const C = useColors();
   const scheme = useScheme();
+  const insets = useSafeAreaInsets();
 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -330,16 +331,17 @@ export default function MoreScreen() {
 
   return (
     <>
-      <StatusBar
-        barStyle={scheme === "dark" ? "light-content" : "dark-content"}
-      />
       <ScrollView
         style={{ flex: 1, backgroundColor: C.background }}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Header */}
         <View
-          style={{ paddingHorizontal: 20, paddingTop: 64, paddingBottom: 20 }}
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: insets.top + 16,
+            paddingBottom: 20,
+          }}
         >
           <Text
             style={{
