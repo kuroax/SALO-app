@@ -58,6 +58,7 @@ There is no `npm run lint` or `npm run test` script in package.json. Typecheck i
 ```ts
 import { useColors } from "@/lib/hooks/useColors";
 import { Section } from "@/components";
+import { formatCurrency } from "@/lib/format";
 ```
 
 ---
@@ -66,9 +67,10 @@ import { Section } from "@/components";
 
 ```
 app/
-├── _layout.tsx                    # Root layout — auth gate + Apollo provider
+├── _layout.tsx                    # Root layout — auth gate + theme gate + Apollo provider
+│                                  # + ErrorBoundary wrapper. FRAGILE.
 ├── (auth)/
-│   ├── _layout.tsx                # Auth group layout
+│   ├── _layout.tsx                # Auth group layout. FRAGILE.
 │   └── login.tsx                  # Login screen
 ├── (app)/
 │   ├── _layout.tsx                # Main app layout — tab navigator
@@ -93,10 +95,13 @@ app/
 │       ├── add-member.tsx         # Add team member
 │       └── change-password.tsx    # Change password
 └── revenue.tsx                    # Revenue detail screen — outside (app) group,
-                                   # accessed via router.push from dashboard
+                                   # accessed via router.push("/revenue") from dashboard
 
 components/
 ├── index.ts                       # Barrel export for root-level shared components
+├── ErrorBoundary.tsx              # Global error boundary — wraps root layout.
+│                                  # Class component (ErrorBoundaryInner) + function
+│                                  # wrapper. Shows "Algo salió mal" + reload button.
 ├── Section.tsx                    # Uppercase label + bordered card container
 ├── InfoRow.tsx                    # Label/value row inside a Section
 ├── EditField.tsx                  # Labelled TextInput for forms and edit modals
@@ -104,7 +109,7 @@ components/
 ├── StyledText.tsx                 # Legacy Expo default — do not import in new code
 ├── Themed.tsx                     # Legacy Expo default — do not import in new code
 ├── ExternalLink.tsx               # Legacy Expo default — do not import in new code
-├── useColorScheme.ts              # Legacy Expo default — do NOT import; use useScheme() instead
+├── useColorScheme.ts              # Legacy Expo default — do NOT import; use useScheme()
 ├── useClientOnlyValue.ts          # Expo web utility — do not modify
 ├── orders/
 │   └── OrderCard.tsx              # Order card used in orders list
@@ -117,10 +122,20 @@ components/
 
 lib/
 ├── apollo/
-│   ├── client.ts                  # Apollo client setup
+│   ├── client.ts                  # Apollo client setup. FRAGILE.
 │   └── links/
-│       ├── auth.link.ts           # Attaches JWT access token to every request — FRAGILE
-│       └── refresh.link.ts        # Handles 401 → silent token refresh flow — FRAGILE
+│       ├── auth.link.ts           # Attaches JWT to every request. FRAGILE.
+│       └── refresh.link.ts        # 401 → silent token refresh. FRAGILE.
+│                                  # Uses module-scope refreshingPromise to serialize
+│                                  # concurrent refresh attempts — do not remove this.
+├── cloudinary.ts                  # uploadToCloudinary(uri) helper.
+│                                  # Reads CLOUDINARY_CLOUD_NAME and
+│                                  # CLOUDINARY_UPLOAD_PRESET from Config.ts.
+│                                  # Both env vars must be set or startup throws.
+├── format.ts                      # Shared formatting utilities (es-MX locale):
+│                                  # formatCurrency(amount), formatDate(dateString),
+│                                  # normalizePhone(raw). Import from here — do not
+│                                  # redefine these in any screen.
 ├── graphql/
 │   ├── mutations/
 │   │   ├── customer.mutations.ts
@@ -134,12 +149,25 @@ lib/
 │       └── product.queries.ts
 ├── hooks/
 │   └── useColors.ts               # useColors() and useScheme() hooks
-└── store/
-    ├── auth.store.ts              # Zustand auth store — tokens, user
-    └── theme.store.ts             # Zustand theme store — dark/light
+├── status.ts                      # Shared status-to-color helpers:
+│                                  # getStatusColor(status: OrderStatus): string
+│                                  # getPaymentColor(status: PaymentStatus): string
+│                                  # Import from here — do not redefine in screens.
+├── store/
+│   ├── auth.store.ts              # Zustand auth store — tokens, user.
+│   │                              # logout() calls apolloClient.clearStore()
+│   │                              # after wiping tokens. FRAGILE.
+│   └── theme.store.ts             # Zustand theme store — dark/light
+└── types.ts                       # Canonical shared TypeScript types:
+                                   # OrderStatus, PaymentStatus, ContactChannel,
+                                   # CustomerTag, Order, Customer, OrderItem, etc.
+                                   # Import from here — do not redeclare in screens.
 
 constants/
-    Config.ts                      # API_URL — single source of truth for backend URL
+    Config.ts                      # Single source of truth for runtime config:
+                                   # API_URL, CLOUDINARY_CLOUD_NAME,
+                                   # CLOUDINARY_UPLOAD_PRESET.
+                                   # All three throw at startup if env var missing.
 
 assets/                            # App icons, splash screens
 ```
@@ -148,18 +176,15 @@ assets/                            # App icons, splash screens
 
 ## ⚠️ Fragile files — do not modify without explicit instruction
 
-These files handle authentication, token refresh, and critical infrastructure.
-A mistake here breaks login for all users.
-
-| File                               | Why fragile                                                      |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| `lib/apollo/links/auth.link.ts`    | Attaches JWT to every GraphQL request                            |
-| `lib/apollo/links/refresh.link.ts` | Silent token refresh on 401 — complex async flow                 |
-| `lib/apollo/client.ts`             | Apollo client setup — cache configuration is intentional         |
-| `lib/store/auth.store.ts`          | Token persistence with expo-secure-store                         |
-| `app/_layout.tsx`                  | Root auth gate — wrong change = auth bypass or infinite redirect |
-| `app/(auth)/_layout.tsx`           | Auth group layout                                                |
-| `constants/Config.ts`              | `API_URL` — never hardcode backend URLs elsewhere                |
+| File                               | Why fragile                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `lib/apollo/links/auth.link.ts`    | Attaches JWT to every GraphQL request                                                                   |
+| `lib/apollo/links/refresh.link.ts` | Silent token refresh on 401 — concurrent refresh serialized via module-scope promise                    |
+| `lib/apollo/client.ts`             | Apollo client setup — cache configuration is intentional                                                |
+| `lib/store/auth.store.ts`          | Token persistence + apolloClient.clearStore() on logout                                                 |
+| `app/_layout.tsx`                  | Root auth gate + theme hydration gate + ErrorBoundary — wrong change = auth bypass or infinite redirect |
+| `app/(auth)/_layout.tsx`           | Auth group layout                                                                                       |
+| `constants/Config.ts`              | API_URL + Cloudinary config — never hardcode these values elsewhere                                     |
 
 ---
 
@@ -248,16 +273,23 @@ All modals use `pageSheet` slide-up:
 ### Root shared components — `@/components`
 
 ```tsx
-import { Section, InfoRow, EditField, StatusBadge } from "@/components";
+import {
+  Section,
+  InfoRow,
+  EditField,
+  StatusBadge,
+  ErrorBoundary,
+} from "@/components";
 ```
 
-| Component          | Purpose                                   |
-| ------------------ | ----------------------------------------- |
-| `Section`          | Uppercase label + bordered card container |
-| `InfoRow`          | Label/value row inside a Section          |
-| `EditField`        | Labelled TextInput for forms              |
-| `StatusBadge`      | Colored pill for statuses                 |
-| `orders/OrderCard` | Card used in orders list                  |
+| Component          | Purpose                                                |
+| ------------------ | ------------------------------------------------------ |
+| `Section`          | Uppercase label + bordered card container              |
+| `InfoRow`          | Label/value row inside a Section                       |
+| `EditField`        | Labelled TextInput for forms                           |
+| `StatusBadge`      | Colored pill for statuses                              |
+| `ErrorBoundary`    | Root error boundary — already used in app/\_layout.tsx |
+| `orders/OrderCard` | Card used in orders list                               |
 
 ### UI primitives — `@/components/ui`
 
@@ -265,11 +297,22 @@ import { Section, InfoRow, EditField, StatusBadge } from "@/components";
 import { Button, Input, Card, Badge } from "@/components/ui";
 ```
 
-These are lower-level primitives. Check `components/ui/` before building any new button, input, or card from scratch.
+Check `components/ui/` before building any new button, input, or card from scratch.
+
+### Shared utilities — always import, never redefine
+
+```tsx
+import { formatCurrency, formatDate, normalizePhone } from "@/lib/format";
+import { getStatusColor, getPaymentColor } from "@/lib/status";
+import type { OrderStatus, PaymentStatus, Order, Customer } from "@/lib/types";
+import { uploadToCloudinary } from "@/lib/cloudinary";
+```
+
+These helpers were previously duplicated across screens. They now live in shared files. Do not redeclare them in any screen.
 
 ### Legacy files — do not use or import
 
-`StyledText.tsx`, `Themed.tsx`, `ExternalLink.tsx`, `useColorScheme.ts`, `useClientOnlyValue.ts` — these are default Expo template files. They still exist but should not be imported in new code.
+`StyledText.tsx`, `Themed.tsx`, `ExternalLink.tsx`, `useColorScheme.ts`, `useClientOnlyValue.ts` — legacy Expo template files. Still exist but must not be imported in new code.
 
 ---
 
@@ -282,6 +325,8 @@ Expo Router file-based routing. Groups:
 - `revenue.tsx` — standalone screen outside both groups, pushed via `router.push("/revenue")`
 
 Dynamic routes use `[id]` and `[productId]` — match the exact segment name when navigating.
+
+Tab routes are statically typed via `Href` from expo-router. Do not use `as never` casts for navigation — `experiments.typedRoutes: true` is enabled in `app.config.js`.
 
 ---
 
@@ -304,27 +349,48 @@ Rules:
 
 `fetchPolicy: "cache-and-network"` may log a cache warning. This is expected. Do NOT add `merge: true` to `Query.fields` in `client.ts` — it previously caused cache corruption on the orders screen.
 
+### refetchQueries — use string form
+
+Always use the operation name string, not the query object form:
+
+```ts
+// ✅ CORRECT
+refetchQueries: ["ListOrders"];
+
+// ❌ WRONG — only refetches the exact variable shape
+refetchQueries: [{ query: LIST_ORDERS, variables: { filter: { limit: 20 } } }];
+```
+
 ### Auth flow
 
-Tokens are stored in `expo-secure-store`. The `auth.link.ts` attaches the access token to every request. The `refresh.link.ts` intercepts 401 responses, silently refreshes the token, and retries. Do not modify these files without thoroughly reading their implementation first.
+Tokens stored in `expo-secure-store`. `auth.link.ts` attaches the access token to every request. `refresh.link.ts` intercepts 401s, serializes concurrent refresh attempts via a module-scope promise, and retries. `logout()` calls `apolloClient.clearStore()` after wiping tokens. Do not modify these files without reading them first.
 
 ---
 
 ## Environment / Config
 
-| File                  | Purpose                                                 |
-| --------------------- | ------------------------------------------------------- |
-| `.env.development`    | Local dev — points to localhost:4000                    |
-| `.env.production`     | Production — points to Railway backend                  |
-| `.env.example`        | Template — safe to commit                               |
-| `app.config.js`       | Dynamic Expo config — reads EXPO*PUBLIC* vars           |
-| `constants/Config.ts` | Exports `API_URL` — only place to reference backend URL |
+| File                  | Purpose                                                  |
+| --------------------- | -------------------------------------------------------- |
+| `.env.development`    | Local dev — localhost:4000 + Cloudinary dev values       |
+| `.env.production`     | Production — Railway backend + Cloudinary prod values    |
+| `.env.example`        | Template — safe to commit                                |
+| `app.config.js`       | Dynamic Expo config — reads EXPO*PUBLIC* vars            |
+| `constants/Config.ts` | API_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET |
+
+Required env vars — all throw at startup if missing:
+
+```
+EXPO_PUBLIC_API_URL
+EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME
+EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+```
 
 Rules:
 
-- Never hardcode backend URLs in code — always use `Config.API_URL`
-- Never commit `.env.development` or `.env.production` to version control
-- Use only `EXPO_PUBLIC_` prefix for variables that need to be accessible in the app bundle
+- Never hardcode backend URLs or Cloudinary credentials in code
+- Never commit `.env.development` or `.env.production`
+- Never use Cloudinary directly in screens — always use `lib/cloudinary.ts`
+- Use only `EXPO_PUBLIC_` prefix for variables accessible in the app bundle
 
 ---
 
@@ -333,24 +399,14 @@ Rules:
 ### Customer channel enum
 
 ```ts
-contactChannel: "whatsapp"; // ✅ for app-created customers
+contactChannel: "whatsapp"; // ✅
 contactChannel: "instagram"; // ✅
 contactChannel: "manual"; // ❌ does not exist in backend enum
 ```
 
-### Phone number normalization (Mexico)
+### Phone number normalization
 
-```ts
-function normalizePhone(raw: string): string {
-  const cleaned = raw.replace(/[^\d+]/g, "");
-  if (cleaned.length > 0 && !cleaned.startsWith("+")) {
-    return `+52${cleaned}`;
-  }
-  return cleaned;
-}
-```
-
-Strip non-digits and prepend `+52` if no leading `+`. Always normalize before sending to the API.
+Use `normalizePhone` from `@/lib/format` — do not reimplement inline.
 
 ---
 
@@ -358,27 +414,26 @@ Strip non-digits and prepend `+52` if no leading `+`. Always normalize before se
 
 **What is safe:**
 
-- No secrets or API keys are stored in source code
+- No secrets or API keys in source code
 - `.gitignore` excludes `.env.development` and `.env.production`
-- Tokens use `expo-secure-store` (encrypted on-device storage)
+- Tokens use `expo-secure-store` (encrypted on-device)
+- Apollo cache is cleared on logout via `apolloClient.clearStore()`
 
 **What cannot be guaranteed from this file alone:**
 
-- Whether `.env.production` is actually excluded from version control in practice
-- Whether all team members follow the `Config.API_URL` convention
+- Whether env files are actually excluded from version control in practice
 - Whether `expo-secure-store` keys are rotated if a device is compromised
 
 **Rules:**
 
 - Never log JWT tokens or user credentials
 - Never embed production credentials in `app.config.js` or any committed file
-- Never hardcode the Railway backend URL — use `Config.API_URL`
 
 ---
 
 ## NativeWind / Tailwind status
 
-NativeWind and TailwindCSS were removed. `nativewind-env.d.ts` is referenced in `tsconfig.json` but the file and the packages no longer exist as active dependencies. Do not re-introduce NativeWind. Do not use `className` props anywhere.
+Removed. `nativewind-env.d.ts` is still referenced in `tsconfig.json` include but the file does not exist — stale reference, harmless. Do not re-introduce NativeWind. Do not use `className` props.
 
 ---
 
@@ -391,10 +446,15 @@ NativeWind and TailwindCSS were removed. `nativewind-env.d.ts` is referenced in 
 - Never use `useColorScheme()` from React Native directly
 - Never import from `components/useColorScheme.ts`, `components/Themed.tsx`, or `components/StyledText.tsx`
 - Never hardcode hex color values
-- Never hardcode backend URLs
+- Never hardcode backend URLs or Cloudinary credentials
 - Never modify `lib/apollo/links/` files without reading them first
 - Never add `merge: true` to Apollo `Query.fields`
 - Never store server data in Zustand
 - Never use `paddingBottom` less than 120 in `ScrollView.contentContainerStyle`
 - Never use `presentationStyle="fullScreen"` for modals
-- Never create a new Button, Input, Card, or Badge component — check `components/ui/` first
+- Never create a new Button, Input, Card, or Badge — check `components/ui/` first
+- Never redefine `formatCurrency`, `formatDate`, `normalizePhone` — import from `@/lib/format`
+- Never redefine `getStatusColor`, `getPaymentColor` — import from `@/lib/status`
+- Never redefine shared types (OrderStatus, PaymentStatus, etc.) — import from `@/lib/types`
+- Never call Cloudinary API directly from screens — use `uploadToCloudinary` from `@/lib/cloudinary`
+- Never use `as never` for route navigation — use typed `Href` from expo-router
