@@ -104,6 +104,7 @@ const FILTER_VALUES: (OrderStatus | "all")[] = [
   "processing",
   "shipped",
   "delivered",
+  "cancelled",
 ];
 
 const FILTER_LABELS: Record<OrderStatus | "all", string> = {

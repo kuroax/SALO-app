@@ -597,7 +597,7 @@ export default function DashboardScreen() {
           style={{
             backgroundColor: C.background,
             paddingHorizontal: 20,
-            paddingTop: insets.top + 20,
+            paddingTop: insets.top + 16,
             paddingBottom: 20,
             flexDirection: "row",
             alignItems: "flex-end",
