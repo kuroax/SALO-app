@@ -1495,6 +1495,56 @@ export default function ProductDetailScreen() {
               C={C}
               last
             />
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderTopWidth: 1,
+                borderTopColor: C.border,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 1.5,
+                  color: C.textSecondary,
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Search Keywords
+              </Text>
+              {product?.searchKeywords && product.searchKeywords.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {product.searchKeywords.map((kw, idx) => (
+                    <View
+                      key={`${kw}-${idx}`}
+                      style={{
+                        backgroundColor: C.accent + "33",
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        marginRight: 6,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: C.accent,
+                        }}
+                      >
+                        {kw}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ fontSize: 13, color: C.textSecondary }}>—</Text>
+              )}
+            </View>
           </View>
         </View>
 
