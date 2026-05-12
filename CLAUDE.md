@@ -112,7 +112,8 @@ components/
 ├── useColorScheme.ts              # Legacy Expo default — do NOT import; use useScheme()
 ├── useClientOnlyValue.ts          # Expo web utility — do not modify
 ├── orders/
-│   └── OrderCard.tsx              # Order card used in orders list
+│   └── OrderCard.tsx              # Dead code — no screen currently imports this.
+│                                  # Do not import. Candidate for removal post-launch.
 └── ui/
     ├── index.ts                   # Barrel export for UI primitives
     ├── Badge.tsx                  # Generic badge/chip
@@ -216,6 +217,8 @@ const scheme = useScheme();
 - **Never** use `useColorScheme()` from React Native directly
 - **Never** use the `components/useColorScheme.ts` file — it is a legacy Expo default
 - **Never** hardcode hex color values anywhere
+- **Never** render `<StatusBar>` in individual screens — it is handled once
+  at the root in `app/_layout.tsx`. It reads `useScheme()` automatically.
 
 ### 3. `TouchableOpacity` only — never `Pressable`
 
@@ -264,6 +267,43 @@ All modals use `pageSheet` slide-up:
 
 ```tsx
 <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+```
+
+### 8. Screen header top padding
+
+All screen headers use safe-area insets, not hardcoded values:
+
+```tsx
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const insets = useSafeAreaInsets();
+// Header container:
+<View style={{ paddingTop: insets.top + 16 }}>
+```
+
+Never use `paddingTop: 64` or any other hardcoded top value on screen headers.
+`react-native-safe-area-context` is already in package.json — no new install needed.
+
+### 9. FlatList performance
+
+Row components rendered inside `renderItem` must be wrapped with `React.memo()`.
+Callbacks passed to row components must use `useCallback()` with correct dependencies.
+Fixed-height lists must provide `getItemLayout` — calculate from known style values.
+
+```tsx
+const ROW_HEIGHT = 137; // measured from style values
+const MyRow = React.memo(({ item, onPress }: Props) => { ... });
+
+<FlatList
+  data={items}
+  keyExtractor={(item) => item.id}
+  getItemLayout={(_data, index) => ({
+    length: ROW_HEIGHT,
+    offset: ROW_HEIGHT * index,
+    index,
+  })}
+  renderItem={({ item }) => <MyRow item={item} onPress={handlePress} />}
+/>
 ```
 
 ---
@@ -458,3 +498,6 @@ Removed. `nativewind-env.d.ts` is still referenced in `tsconfig.json` include bu
 - Never redefine shared types (OrderStatus, PaymentStatus, etc.) — import from `@/lib/types`
 - Never call Cloudinary API directly from screens — use `uploadToCloudinary` from `@/lib/cloudinary`
 - Never use `as never` for route navigation — use typed `Href` from expo-router
+- Never render `<StatusBar>` in individual screens — root layout handles it
+- Never use hardcoded `paddingTop` values on screen headers — use `useSafeAreaInsets()`
+- Never define row components inline inside `renderItem` — extract and wrap with `React.memo()`
