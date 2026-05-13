@@ -1505,11 +1505,8 @@ export default function ProductDetailScreen() {
             >
               <Text
                 style={{
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 1.5,
+                  fontSize: 13,
                   color: C.textSecondary,
-                  textTransform: "uppercase",
                   marginBottom: 8,
                 }}
               >
